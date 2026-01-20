@@ -1,0 +1,661 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  nameAr    String?  // Arabic name
+  email     String?  @unique
+  phone     String   @unique
+  password  String?
+  location  String?
+  locationAr String? // Arabic location
+  avatar    String?  @db.LongText
+  role      Role     @default(CUSTOMER)
+  isActive  Boolean  @default(true)
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  venues    Venue[]    @relation("VenueProvider")
+  services  Service[]  @relation("ServiceProvider")
+  bookings  Booking[]  @relation("BookingCustomer")
+  reviews   Review[]
+  otps      OTP[]     
+  reports   Report[]  @relation("ReportGenerator")
+  notifications Notification[] @relation("NotificationRecipient")
+  userCoupons UserCoupon[] @relation("UserCoupons")
+  favoriteVenues UserFavoriteVenue[]
+  creditCards CreditCard[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String
+  nameAr      String
+  icon        String?
+  description String?
+  image       String?   @db.LongText // Support large base64 images
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  services    Service[]
+
+  @@map("categories")
+}
+
+model Service {
+  id              String      @id @default(uuid())
+  serviceType     ServiceType @default(OTHER)
+  name            String
+  nameAr          String
+  description     String?     @db.Text
+  descriptionAr   String?     @db.Text
+  price           Float
+  pricePerHour    Float?      // For hourly services
+  commission      Float       @default(5.0)
+  categoryId      String
+  providerId      String
+  images          Json        // Array of image URLs stored as JSON
+  
+  // Location & Address
+  location        String?     // Base location
+  address         String?      // Full address
+  latitude        Float?
+  longitude       Float?
+  
+  // Service Capabilities
+  worksInVenues   Boolean     @default(true)   // Can work inside venues
+  worksExternal   Boolean     @default(true)   // Can work at external locations
+  requiresVenue   Boolean     @default(false)  // Must be booked with venue
+  
+  // Availability
+  workingHoursStart String?   // e.g., "09:00"
+  workingHoursEnd   String?   // e.g., "22:00"
+  
+  // Ratings & Status
+  rating          Float       @default(0)
+  reviewCount     Int         @default(0)
+  isActive        Boolean     @default(true)
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  category        Category        @relation(fields: [categoryId], references: [id])
+  provider        User           @relation("ServiceProvider", fields: [providerId], references: [id])
+  bookings        BookingService[]
+  reviews         Review[]
+  venues          VenueService[]
+  holidays        ServiceHoliday[]
+
+  @@index([serviceType])
+  @@index([categoryId])
+  @@index([providerId])
+  @@map("services")
+}
+
+model Venue {
+  id          String    @id @default(uuid())
+  name        String
+  nameAr      String
+  description String?   @db.Text
+  descriptionAr String?  @db.Text
+  price       Float     // Total price
+  pricePerHour Float?   // Price per hour
+  commission  Float     @default(10.0)
+  providerId  String
+  images      Json      // Array of image URLs stored as JSON
+  location    String
+  address     String?   // Additional address field
+  latitude    Float?    // Latitude for map
+  longitude   Float?    // Longitude for map
+  rating      Float     @default(0)
+  reviewCount Int       @default(0)
+  capacity    Int?
+  clients     Int       @default(0) // Number of clients who booked
+  workingHoursStart String? // e.g., "09:00"
+  workingHoursEnd   String? // e.g., "22:00"
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  provider    User           @relation("VenueProvider", fields: [providerId], references: [id])
+  bookings    Booking[]      @relation("BookingVenue")
+  reviews     Review[]
+  services    VenueService[]
+  favorites   UserFavoriteVenue[]
+  holidays    VenueHoliday[] // New relation for holidays/blocked dates
+
+  @@map("venues")
+}
+
+model VenueHoliday {
+  id        String   @id @default(uuid())
+  venueId   String
+  date      DateTime // The holiday/blocked date
+  reason    String?  @db.Text // Optional reason for the holiday
+  isRecurring Boolean @default(false) // If true, repeats yearly
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, date])
+  @@map("venue_holidays")
+}
+
+model Booking {
+  id            String        @id @default(uuid())
+  bookingNumber String        @unique
+  customerId    String
+  venueId       String?
+  bookingType   BookingType   @default(MIXED)
+  date          DateTime
+  startTime     String?       // e.g., "14:00"
+  endTime       String?       // e.g., "18:00"
+  eventDate     String?       // Formatted date string for display
+  location      String?       // Selected location type: 'artist', 'another', 'map'
+  locationAddress String?     @db.Text // Address if location is 'another' or 'map'
+  locationLatitude Float?     // Latitude if location is 'map'
+  locationLongitude Float?    // Longitude if location is 'map'
+  status        BookingStatus @default(PENDING)
+  totalAmount   Float
+  discount      Float         @default(0)
+  finalAmount   Float
+  depositAmount Float?        // Amount of deposit (usually 30-50% of finalAmount)
+  depositPaid   Boolean       @default(false) // Whether deposit has been paid
+  remainingAmount Float?      // Remaining amount to be paid (finalAmount - depositAmount)
+  remainingPaid  Boolean      @default(false) // Whether remaining amount has been paid
+  paymentMethod String?
+  paymentStatus PaymentStatus @default(PENDING)
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  customer      User            @relation("BookingCustomer", fields: [customerId], references: [id])
+  venue         Venue?          @relation("BookingVenue", fields: [venueId], references: [id])
+  services      BookingService[]
+  payments      Payment[]
+
+  @@map("bookings")
+}
+
+model BookingService {
+  id              String   @id @default(uuid())
+  bookingId       String
+  serviceId       String
+  price           Float
+  
+  // Service-specific booking details
+  date            DateTime?  // Override booking date if different
+  startTime       String?    // e.g., "14:00"
+  endTime         String?    // e.g., "18:00"
+  duration        Int?       // Duration in hours
+  
+  // Location for this specific service
+  locationType    String?    // 'venue', 'home', 'hotel', 'outdoor', 'other'
+  locationAddress String?     @db.Text
+  locationLatitude Float?
+  locationLongitude Float?
+  
+  // Notes specific to this service
+  notes           String?     @db.Text
+  
+  createdAt       DateTime    @default(now())
+
+  // Relations
+  booking         Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  service         Service     @relation(fields: [serviceId], references: [id])
+
+  @@unique([bookingId, serviceId])
+  @@map("booking_services")
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  bookingId     String
+  amount        Float
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  transactionId String?
+  cardId        String?       // Reference to credit card used for payment
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  booking        Booking       @relation(fields: [bookingId], references: [id])
+  card           CreditCard?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@map("payments")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  serviceId String?
+  venueId   String?
+  rating    Int
+  comment   String?  @db.Text
+  commentAr String?  @db.Text // Arabic comment
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  venue     Venue?   @relation(fields: [venueId], references: [id], onDelete: SetNull)
+
+  @@map("reviews")
+}
+
+enum Role {
+  CUSTOMER
+  PROVIDER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  APPLE_PAY
+  GOOGLE_PAY
+  VISA
+  MASTERCARD
+  PAYPAL
+}
+
+enum ServiceType {
+  VENUE
+  FOOD_PROVIDER
+  PHOTOGRAPHER
+  CAR
+  DECORATION
+  DJ
+  FLORIST
+  OTHER
+}
+
+enum BookingType {
+  VENUE_ONLY      // Only venue booked
+  SERVICES_ONLY   // Only services, no venue
+  MIXED           // Venue + services
+}
+
+// Permission System
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  nameAr      String?  // Arabic name
+  description String?
+  descriptionAr String? // Arabic description
+  resource    String   // e.g., 'users', 'venues', 'bookings'
+  action      String   // e.g., 'create', 'read', 'update', 'delete'
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  role         Role
+  permissionId String
+  createdAt    DateTime   @default(now())
+
+  // Relations
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@map("role_permissions")
+}
+
+// OTP Management
+model OTP {
+  id        String   @id @default(uuid())
+  userId    String?
+  phone     String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime  @default(now())
+
+  // Relations
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otps")
+}
+
+// Reports Management
+model Report {
+  id          String      @id @default(uuid())
+  name        String
+  type        ReportType
+  resource    String      // e.g., 'users', 'bookings', 'venues', etc.
+  filters     Json?       // Store filter criteria as JSON
+  format      ReportFormat @default(PDF)
+  generatedBy String      // User ID who generated the report
+  fileUrl     String?     // URL to generated report file
+  status      ReportStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  completedAt DateTime?
+
+  // Relations
+  generator   User        @relation("ReportGenerator", fields: [generatedBy], references: [id])
+
+  @@map("reports")
+}
+
+enum ReportType {
+  USERS
+  BOOKINGS
+  VENUES
+  SERVICES
+  PAYMENTS
+  REVIEWS
+  CATEGORIES
+  CUSTOM
+}
+
+enum ReportFormat {
+  PDF
+  CSV
+  EXCEL
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+// Notifications System
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           // User who receives the notification
+  title     String
+  message   String           @db.Text
+  type      NotificationType @default(INFO)
+  category  NotificationCategory
+  isRead    Boolean          @default(false)
+  link      String?          // Optional link to related resource
+  metadata  Json?            // Additional data as JSON
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+
+  // Relations
+  user      User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum NotificationCategory {
+  BOOKING
+  PAYMENT
+  REVIEW
+  SYSTEM
+  USER
+  VENUE
+  SERVICE
+  REPORT
+}
+
+// App Content Management
+model About {
+  id          String   @id @default(uuid())
+  title       String
+  titleAr     String
+  content     String   @db.Text
+  contentAr   String   @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("about")
+}
+
+model Privacy {
+  id          String   @id @default(uuid())
+  title       String
+  titleAr     String
+  content     String   @db.Text
+  contentAr   String   @db.Text
+  version     String   @default("1.0")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("privacy")
+}
+
+model Terms {
+  id          String   @id @default(uuid())
+  title       String
+  titleAr     String
+  content     String   @db.Text
+  contentAr   String   @db.Text
+  version     String   @default("1.0")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("terms")
+}
+
+// Slider Management
+model Slider {
+  id          String   @id @default(uuid())
+  title       String?
+  titleAr     String?
+  description String?  @db.Text
+  descriptionAr String? @db.Text
+  image       String   @db.Text // Image URL (can be base64, so use TEXT)
+  link        String?  // Optional link
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("sliders")
+}
+
+// App Settings
+model AppSettings {
+  id                String   @id @default(uuid())
+  appName           String
+  appNameAr         String
+  appLogo           String?  @db.Text // App logo URL (can be base64, so use TEXT)
+  dashboardLogo     String?  @db.Text // Admin dashboard logo URL (can be base64, so use TEXT)
+  favicon           String?  @db.Text // Favicon URL (can be base64, so use TEXT)
+  primaryColor      String?  @default("#2d2871")
+  secondaryColor    String?  @default("#1f1a5a")
+  email             String?
+  phone             String?
+  address           String?
+  addressAr         String?
+  facebookUrl       String?
+  twitterUrl        String?
+  instagramUrl      String?
+  linkedinUrl       String?
+  playStoreUrl      String?
+  appStoreUrl       String?
+  shareMessage      String?  @db.Text
+  shareMessageAr    String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+// Onboarding Slides
+model OnboardingSlide {
+  id          String   @id @default(uuid())
+  title       String
+  titleAr     String
+  subtitle    String?  @db.Text
+  subtitleAr  String?  @db.Text
+  image       String   @db.Text // Image URL (can be base64, so use TEXT)
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("onboarding_slides")
+}
+
+// Coupons
+model Coupon {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  title       String
+  titleAr     String
+  description String?  @db.Text
+  descriptionAr String? @db.Text
+  discountType DiscountType @default(PERCENTAGE)
+  discountValue Float
+  minAmount   Float?   // Minimum purchase amount
+  maxDiscount Float?   // Maximum discount amount
+  image       String?  @db.Text // Image URL (can be base64, so use TEXT)
+  startDate   DateTime
+  endDate     DateTime
+  usageLimit  Int?     // Total usage limit (null = unlimited)
+  usedCount   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  userCoupons UserCoupon[]
+
+  @@map("coupons")
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+// User Coupons (track which users have used which coupons)
+model UserCoupon {
+  id        String   @id @default(uuid())
+  userId    String
+  couponId  String
+  usedAt    DateTime @default(now())
+
+  // Relations
+  user      User     @relation("UserCoupons", fields: [userId], references: [id], onDelete: Cascade)
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, couponId])
+  @@map("user_coupons")
+}
+
+// Service Holidays (blocked dates for services)
+model ServiceHoliday {
+  id          String   @id @default(uuid())
+  serviceId   String
+  date        DateTime
+  reason      String?  @db.Text
+  isRecurring Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  service     Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, date])
+  @@map("service_holidays")
+}
+
+// Venue Services (many-to-many relationship)
+model VenueService {
+  id        String   @id @default(uuid())
+  venueId   String
+  serviceId String
+  createdAt DateTime @default(now())
+
+  // Relations
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, serviceId])
+  @@map("venue_services")
+}
+
+// User Favorite Venues
+model UserFavoriteVenue {
+  id        String   @id @default(uuid())
+  userId    String
+  venueId   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, venueId])
+  @@map("user_favorite_venues")
+}
+
+// Credit Card Management
+model CreditCard {
+  id            String   @id @default(uuid())
+  userId        String
+  cardNumber    String   // Last 4 digits only (encrypted in production)
+  cardholderName String
+  expiryDate    String   // Format: MM/YY
+  cvv           String?  // Should be encrypted in production
+  isDefault     Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments      Payment[]
+
+  @@map("credit_cards")
+}

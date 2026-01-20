@@ -1,0 +1,1359 @@
+{
+	"info": {
+		"_postman_id": "mobile-api-collection-001",
+		"name": "afrahona",
+		"description": "Complete Postman collection for Mobile App endpoints based on frontend and Flutter app usage",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Send OTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/otp/send",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "otp", "send"]
+						},
+						"description": "Send OTP to phone number for login/registration"
+					}
+				},
+				{
+					"name": "Verify OTP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.environment.set(\"auth_token\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+1234567890\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/otp/verify",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "otp", "verify"]
+						},
+						"description": "Verify OTP and login/register user. Automatically saves token to environment."
+					}
+				},
+				{
+					"name": "Register",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201 || pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.environment.set(\"auth_token\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Doe\",\n  \"phone\": \"+1234567890\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"location\": \"New York\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Register a new user. Automatically saves token to environment."
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.environment.set(\"auth_token\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+1234567890\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login with phone and password. Automatically saves token to environment."
+					}
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/me",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "me"]
+						},
+						"description": "Get current authenticated user profile"
+					}
+				},
+				{
+					"name": "Forgot Password (Send OTP)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/forgot-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "forgot-password"]
+						},
+						"description": "Send OTP to phone number for password reset. OTP expires in 5 minutes. Rate limited to 3 requests per hour per phone number."
+					}
+				},
+				{
+					"name": "Reset Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.environment.set(\"auth_token\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+1234567890\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/reset-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "reset-password"]
+						},
+						"description": "Reset password by verifying OTP and setting new password. Requires phone, OTP (from forgot-password), and newPassword (min 6 characters). Automatically logs in user and saves token to environment."
+					}
+				}
+			]
+		},
+		{
+			"name": "Public Endpoints",
+			"item": [
+				{
+					"name": "Home",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/mobile/home?limit=5",
+							"host": ["{{base_url}}"],
+							"path": ["api", "mobile", "home"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "5",
+									"description": "Number of venues to return"
+								}
+							]
+						},
+						"description": "Get home page data including categories, top venues, popular venues, and sliders"
+					}
+				},
+				{
+					"name": "Venues",
+					"item": [
+						{
+							"name": "Get All Venues",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/venues?search=&categoryId=&minPrice=&maxPrice=&sortBy=&limit=20&offset=0",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "venues"],
+									"query": [
+										{
+											"key": "search",
+											"value": "",
+											"description": "Search term"
+										},
+										{
+											"key": "categoryId",
+											"value": "",
+											"description": "Filter by category ID"
+										},
+										{
+											"key": "minPrice",
+											"value": "",
+											"description": "Minimum price"
+										},
+										{
+											"key": "maxPrice",
+											"value": "",
+											"description": "Maximum price"
+										},
+										{
+											"key": "sortBy",
+											"value": "",
+											"description": "Sort by: rating, price_asc, price_desc, popular"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "offset",
+											"value": "0"
+										}
+									]
+								},
+								"description": "List all venues with optional filters"
+							}
+						},
+						{
+							"name": "Get Venue Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/venues/:id",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "venues", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "venue-id-here"
+										}
+									]
+								},
+								"description": "Get venue details by ID"
+							}
+						},
+						{
+							"name": "Get Available Slots",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/venues/:id/available-slots?date=2024-01-15",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "venues", ":id", "available-slots"],
+									"query": [
+										{
+											"key": "date",
+											"value": "2024-01-15",
+											"description": "Date in YYYY-MM-DD format (required)"
+										}
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "venue-id-here"
+										}
+									]
+								},
+								"description": "Get available time slots for a venue on a specific date (date parameter required)"
+							}
+						},
+						{
+							"name": "Get Booked Dates",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/venues/:id/booked-dates",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "venues", ":id", "booked-dates"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "venue-id-here"
+										}
+									]
+								},
+								"description": "Get booked dates for a venue"
+							}
+						}
+					]
+				},
+				{
+					"name": "Services",
+					"item": [
+						{
+							"name": "Get All Services",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/services?search=&categoryId=&sortBy=&limit=20&offset=0",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "services"],
+									"query": [
+										{
+											"key": "search",
+											"value": "",
+											"description": "Search term"
+										},
+										{
+											"key": "categoryId",
+											"value": "",
+											"description": "Filter by category ID"
+										},
+										{
+											"key": "sortBy",
+											"value": "",
+											"description": "Sort by: rating, price_asc, price_desc"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "offset",
+											"value": "0"
+										}
+									]
+								},
+								"description": "List all services with optional filters"
+							}
+						},
+						{
+							"name": "Get Service Details",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/services/:id",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "services", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "service-id-here"
+										}
+									]
+								},
+								"description": "Get service details by ID"
+							}
+						},
+						{
+							"name": "Check Service Availability",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/services/:id/availability?date=2024-01-15&startTime=10:00&endTime=12:00",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "services", ":id", "availability"],
+									"query": [
+										{
+											"key": "date",
+											"value": "2024-01-15",
+											"description": "Date in YYYY-MM-DD format (required)"
+										},
+										{
+											"key": "startTime",
+											"value": "10:00",
+											"description": "Start time in HH:mm format (optional)"
+										},
+										{
+											"key": "endTime",
+											"value": "12:00",
+											"description": "End time in HH:mm format (optional)"
+										}
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "service-id-here"
+										}
+									]
+								},
+								"description": "Check service availability (date required, startTime/endTime optional)"
+							}
+						}
+					]
+				},
+				{
+					"name": "Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/mobile/categories",
+							"host": ["{{base_url}}"],
+							"path": ["api", "mobile", "categories"]
+						},
+						"description": "Get all categories"
+					}
+				},
+				{
+					"name": "Search",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/mobile/search?q=restaurant&type=all&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "mobile", "search"],
+							"query": [
+								{
+									"key": "q",
+									"value": "restaurant",
+									"description": "Search query (required)",
+									"disabled": false
+								},
+								{
+									"key": "type",
+									"value": "all",
+									"description": "Search type: all, venues, services"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Search venues and services"
+					}
+				},
+				{
+					"name": "Settings & Content",
+					"item": [
+						{
+							"name": "Get Settings",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/settings",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "settings"]
+								},
+								"description": "Get app settings (name, logo, etc.)"
+							}
+						},
+						{
+							"name": "Get Privacy Policy",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/content/privacy",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "content", "privacy"]
+								},
+								"description": "Get privacy policy content"
+							}
+						},
+						{
+							"name": "Get Terms & Conditions",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/content/terms",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "content", "terms"]
+								},
+								"description": "Get terms and conditions content"
+							}
+						},
+						{
+							"name": "Get About Us",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/content/about",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "content", "about"]
+								},
+								"description": "Get about us content"
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Authenticated Endpoints",
+			"item": [
+				{
+					"name": "Bookings",
+					"item": [
+						{
+							"name": "Get User Bookings",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/bookings?status=&limit=20&offset=0",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "bookings"],
+									"query": [
+										{
+											"key": "status",
+											"value": "",
+											"description": "Filter by status: pending, active, completed, cancelled"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "offset",
+											"value": "0"
+										}
+									]
+								},
+								"description": "Get user bookings with optional status filter"
+							}
+						},
+						{
+							"name": "Get Booking Details",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/bookings/:id",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "bookings", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "booking-id-here"
+										}
+									]
+								},
+								"description": "Get booking details by ID"
+							}
+						},
+						{
+							"name": "Create Booking",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"venueId\": \"venue-id-here\",\n  \"eventDate\": \"2024-01-15\",\n  \"startTime\": \"10:00\",\n  \"endTime\": \"12:00\",\n  \"guestCount\": 4,\n  \"serviceIds\": [\"service-id-1\", \"service-id-2\"],\n  \"notes\": \"Special occasion\",\n  \"paymentMethod\": \"cash\"\n}"
+								},
+							"url": {
+								"raw": "{{base_url}}/api/bookings",
+								"host": ["{{base_url}}"],
+								"path": ["api", "bookings"]
+							},
+							"description": "Create a new booking. Include 'cardId' in body to pay deposit immediately (30% of final amount). Booking status will be PENDING until admin confirms."
+							}
+						},
+						{
+							"name": "Pay Deposit",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"cardId\": \"card-id-here\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/mobile/bookings/:id/pay-deposit",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "bookings", ":id", "pay-deposit"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "booking-id-here"
+										}
+									]
+								},
+								"description": "Pay deposit amount (30% of final amount) for a booking. Required before booking can be confirmed by admin. After admin confirms (status: CONFIRMED), user will receive notification to pay remaining amount."
+							}
+						},
+						{
+							"name": "Cancel Booking",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+							"url": {
+								"raw": "{{base_url}}/api/bookings/:id/cancel",
+								"host": ["{{base_url}}"],
+								"path": ["api", "bookings", ":id", "cancel"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "booking-id-here"
+										}
+									]
+								},
+								"description": "Cancel a booking"
+							}
+						},
+						{
+							"name": "Pay Remaining Amount",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"cardId\": \"card-id-here\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/mobile/bookings/:id/pay-remaining",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "bookings", ":id", "pay-remaining"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "booking-id-here"
+										}
+									]
+								},
+								"description": "Pay remaining amount (70% of final amount) for a booking. This can only be done after: 1) Deposit is paid, 2) Admin confirms booking (status: CONFIRMED), 3) User receives notification to pay remaining amount."
+							}
+						}
+					]
+				},
+				{
+					"name": "Wallet",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/mobile/wallet?limit=20&offset=0",
+							"host": ["{{base_url}}"],
+							"path": ["api", "mobile", "wallet"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						},
+						"description": "Get wallet balance and transactions"
+					}
+				},
+				{
+					"name": "Profile",
+					"item": [
+						{
+							"name": "Get Profile",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/profile",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "profile"]
+								},
+								"description": "Get user profile"
+							}
+						},
+						{
+							"name": "Update Profile",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "name",
+											"value": "John Doe",
+											"type": "text"
+										},
+										{
+											"key": "nameAr",
+											"value": "جون دو",
+											"type": "text"
+										},
+										{
+											"key": "email",
+											"value": "john@example.com",
+											"type": "text"
+										},
+										{
+											"key": "phone",
+											"value": "+1234567890",
+											"type": "text"
+										},
+										{
+											"key": "location",
+											"value": "New York",
+											"type": "text"
+										},
+										{
+											"key": "locationAr",
+											"value": "نيويورك",
+											"type": "text"
+										},
+										{
+											"key": "avatar",
+											"type": "file",
+											"src": [],
+											"description": "Avatar image (optional)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/mobile/profile",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "profile"]
+								},
+								"description": "Update user profile. Supports file upload for avatar."
+							}
+						},
+						{
+							"name": "Delete Profile",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/profile",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "profile"]
+								},
+								"description": "Delete user account"
+							}
+						}
+					]
+				},
+				{
+					"name": "Notifications",
+					"item": [
+						{
+							"name": "Get Notifications",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/notifications?limit=20&offset=0",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "notifications"],
+									"query": [
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "offset",
+											"value": "0"
+										}
+									]
+								},
+								"description": "Get user notifications with unread count"
+							}
+						},
+						{
+							"name": "Mark Notification as Read",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/notifications/:id/read",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "notifications", ":id", "read"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "notification-id-here"
+										}
+									]
+								},
+								"description": "Mark notification as read"
+							}
+						},
+						{
+							"name": "Get Notification by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/notifications/:id",
+									"host": ["{{base_url}}"],
+									"path": ["api", "notifications", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "notification-id-here"
+										}
+									]
+								},
+								"description": "Get notification details by ID (uses /api/notifications not /api/mobile/notifications)"
+							}
+						},
+						{
+							"name": "Mark All Notifications as Read",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/notifications/read-all",
+									"host": ["{{base_url}}"],
+									"path": ["api", "notifications", "read-all"]
+								},
+								"description": "Mark all notifications as read (uses /api/notifications/read-all)"
+							}
+						},
+						{
+							"name": "Get Unread Count",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/notifications/unread-count",
+									"host": ["{{base_url}}"],
+									"path": ["api", "notifications", "unread-count"]
+								},
+								"description": "Get unread notifications count (uses /api/notifications/unread-count)"
+							}
+						}
+					]
+				},
+				{
+					"name": "Coupons",
+					"item": [
+						{
+							"name": "Get All Coupons",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/coupons",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "coupons"]
+								},
+								"description": "Get all active coupons"
+							}
+						},
+						{
+							"name": "Get Coupon by Code",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/coupons/:code",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "coupons", ":code"],
+									"variable": [
+										{
+											"key": "code",
+											"value": "DISCOUNT10"
+										}
+									]
+								},
+								"description": "Get coupon details by code"
+							}
+						},
+						{
+							"name": "Apply Coupon",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 100.00\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/mobile/coupons/:code/apply",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "coupons", ":code", "apply"],
+									"variable": [
+										{
+											"key": "code",
+											"value": "DISCOUNT10"
+										}
+									]
+								},
+								"description": "Apply coupon to booking amount"
+							}
+						}
+					]
+				},
+				{
+					"name": "Credit Cards",
+					"item": [
+						{
+							"name": "Get Cards",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/cards",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "cards"]
+								},
+								"description": "Get user credit cards"
+							}
+						},
+						{
+							"name": "Add Card",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"cardHolderName\": \"John Doe\",\n  \"expiryMonth\": \"12\",\n  \"expiryYear\": \"2025\",\n  \"cvv\": \"123\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/mobile/cards",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "cards"]
+								},
+								"description": "Add a new credit card"
+							}
+						},
+						{
+							"name": "Update Card",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"cardHolderName\": \"John Doe\",\n  \"expiryMonth\": \"12\",\n  \"expiryYear\": \"2025\",\n  \"cvv\": \"123\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/mobile/cards/:id",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "cards", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "card-id-here"
+										}
+									]
+								},
+								"description": "Update credit card details"
+							}
+						},
+						{
+							"name": "Delete Card",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/cards/:id",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "cards", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "card-id-here"
+										}
+									]
+								},
+								"description": "Delete credit card"
+							}
+						}
+					]
+				},
+				{
+					"name": "Favorites",
+					"item": [
+						{
+							"name": "Get Favorites",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/favorites",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "favorites"]
+								},
+								"description": "Get user favorite venues"
+							}
+						},
+						{
+							"name": "Add to Favorites",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/venues/:id/favorite",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "venues", ":id", "favorite"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "venue-id-here"
+										}
+									]
+								},
+								"description": "Add venue to favorites"
+							}
+						},
+						{
+							"name": "Remove from Favorites",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/mobile/venues/:id/favorite",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "venues", ":id", "favorite"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "venue-id-here"
+										}
+									]
+								},
+								"description": "Remove venue from favorites"
+							}
+						}
+					]
+				},
+				{
+					"name": "Onboarding",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/onboarding/mobile",
+							"host": ["{{base_url}}"],
+							"path": ["api", "onboarding", "mobile"]
+						},
+						"description": "Get active onboarding slides for mobile app"
+					}
+				},
+				{
+					"name": "Payments",
+					"item": [
+						{
+							"name": "Create Payment Intent",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"amount\": 100.00,\n  \"currency\": \"USD\",\n  \"bookingId\": \"booking-id-here\",\n  \"paymentMethod\": \"card\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/payments/create-intent",
+									"host": ["{{base_url}}"],
+									"path": ["api", "payments", "create-intent"]
+								},
+								"description": "Create payment intent for booking"
+							}
+						},
+						{
+							"name": "Confirm Payment",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"paymentIntentId\": \"pi_xxxxx\",\n  \"bookingId\": \"booking-id-here\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/payments/confirm",
+									"host": ["{{base_url}}"],
+									"path": ["api", "payments", "confirm"]
+								},
+								"description": "Confirm payment for booking"
+							}
+						},
+						{
+							"name": "Request Refund",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"paymentId\": \"payment-id-here\",\n  \"amount\": 100.00,\n  \"reason\": \"Customer request\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/payments/refund",
+									"host": ["{{base_url}}"],
+									"path": ["api", "payments", "refund"]
+								},
+								"description": "Request refund for a payment"
+							}
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
+
