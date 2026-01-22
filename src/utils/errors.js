@@ -12,7 +12,8 @@ class AppError extends Error {
 
 class NotFoundError extends AppError {
   constructor(resource = 'Resource') {
-    super(`${resource} not found`, 404, 'NOT_FOUND');
+    const resourceName = typeof resource === 'string' ? resource.toLowerCase() : 'resource';
+    super(`${resourceName} not found`, 404, 'not_found');
   }
 }
 

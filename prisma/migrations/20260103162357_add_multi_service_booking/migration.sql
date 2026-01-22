@@ -44,8 +44,13 @@ CREATE INDEX `services_serviceType_idx` ON `services`(`serviceType`);
 -- AddForeignKey
 ALTER TABLE `service_holidays` ADD CONSTRAINT `service_holidays_serviceId_fkey` FOREIGN KEY (`serviceId`) REFERENCES `services`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex (only if not exists)
-CREATE INDEX IF NOT EXISTS `services_categoryId_idx` ON `services`(`categoryId`);
-
--- CreateIndex (only if not exists)
-CREATE INDEX IF NOT EXISTS `services_providerId_idx` ON `services`(`providerId`);
+-- Note:
+-- The following indexes were originally created using "CREATE INDEX IF NOT EXISTS",
+-- which is not supported on some MySQL versions (e.g. 5.7 and early 8.0),
+-- causing Prisma migration errors (P3006 / MySQL 1064).
+-- These indexes are optional performance optimizations and are safe to omit
+-- for schema compatibility across environments.
+--
+-- If you need these indexes in production, create them manually using:
+--   CREATE INDEX `services_categoryId_idx` ON `services`(`categoryId`);
+--   CREATE INDEX `services_providerId_idx` ON `services`(`providerId`);

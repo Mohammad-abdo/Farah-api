@@ -141,9 +141,173 @@ router.get('/services', MobileController.getServices);
 
 /**
  * @swagger
- * /api/mobile/services/:id:
+ * /api/mobile/services/booking:
+ *   post:
+ *     summary: Create a service-only booking (without venue) - supports multiple services
+ *     description: >
+ *       Convenience endpoint for booking one or MORE services from mobile app without a venue.
+ *       This endpoint allows booking multiple services in a single booking (e.g., makeup + hair + nails).
+ *       Internally uses the same logic as /api/bookings.  
+ *       IMPORTANT: Do NOT send `venueId` - this is for service-only bookings.
+ *       The `services` array can contain multiple service objects, each with its own details.
+ *     tags: [Mobile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - services
+ *               - date
+ *               - totalAmount
+ *             properties:
+ *               date:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Booking date (ISO string)
+ *                 example: "2026-02-01T18:00:00.000Z"
+ *               startTime:
+ *                 type: string
+ *                 description: Start time (HH:mm format)
+ *                 example: "18:00"
+ *               endTime:
+ *                 type: string
+ *                 description: End time (HH:mm format)
+ *                 example: "20:00"
+ *               location:
+ *                 type: string
+ *                 description: Location type (home, hotel, outdoor, other, etc.)
+ *                 example: "home"
+ *               locationAddress:
+ *                 type: string
+ *                 description: Full address for the service location
+ *                 example: "الرياض - حي النرجس"
+ *               locationLatitude:
+ *                 type: number
+ *                 description: Latitude coordinate (optional)
+ *                 example: 24.7136
+ *               locationLongitude:
+ *                 type: number
+ *                 description: Longitude coordinate (optional)
+ *                 example: 46.6753
+ *               totalAmount:
+ *                 type: number
+ *                 description: Total amount for all services
+ *                 example: 150.00
+ *               discount:
+ *                 type: number
+ *                 description: Discount amount (optional)
+ *                 default: 0
+ *               cardId:
+ *                 type: string
+ *                 description: Credit card ID for payment (optional - can pay deposit later)
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes for the booking
+ *               services:
+ *                 type: array
+ *                 minItems: 1
+ *                 description: >
+ *                   Array of service booking objects. You can book MULTIPLE services in one booking.
+ *                   Each object should include serviceId and optional time/location fields.
+ *                   Example: [{"serviceId": "srv_1", "price": 50}, {"serviceId": "srv_2", "price": 100}]
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - serviceId
+ *                   properties:
+ *                     serviceId:
+ *                       type: string
+ *                       description: Service ID (required)
+ *                       example: "srv_123"
+ *                     price:
+ *                       type: number
+ *                       description: Price for this service (optional - will use service default if not provided)
+ *                       example: 50.00
+ *                     date:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Specific date for this service (optional - uses booking date if not provided)
+ *                     startTime:
+ *                       type: string
+ *                       description: Specific start time for this service (optional)
+ *                       example: "18:00"
+ *                     endTime:
+ *                       type: string
+ *                       description: Specific end time for this service (optional)
+ *                       example: "19:00"
+ *                     locationType:
+ *                       type: string
+ *                       description: Location type for this specific service (optional)
+ *                       example: "home"
+ *                     locationAddress:
+ *                       type: string
+ *                       description: Address for this specific service (optional)
+ *                     locationLatitude:
+ *                       type: number
+ *                       description: Latitude for this specific service (optional)
+ *                     locationLongitude:
+ *                       type: number
+ *                       description: Longitude for this specific service (optional)
+ *                     notes:
+ *                       type: string
+ *                       description: Notes specific to this service (optional)
+ *           example:
+ *             date: "2026-02-01T18:00:00.000Z"
+ *             startTime: "18:00"
+ *             endTime: "20:00"
+ *             location: "home"
+ *             locationAddress: "الرياض - حي النرجس"
+ *             totalAmount: 200.00
+ *             cardId: "card_123"
+ *             notes: "حفلة عيد ميلاد"
+ *             services:
+ *               - serviceId: "srv_makeup_001"
+ *                 price: 100.00
+ *                 startTime: "18:00"
+ *                 endTime: "19:00"
+ *               - serviceId: "srv_hair_001"
+ *                 price: 100.00
+ *                 startTime: "19:00"
+ *                 endTime: "20:00"
+ *     responses:
+ *       201:
+ *         description: Service booking created successfully (supports multiple services)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 booking:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     bookingNumber:
+ *                       type: string
+ *                     bookingType:
+ *                       type: string
+ *                       example: "SERVICES_ONLY"
+ *                     services:
+ *                       type: array
+ *                       description: Array of booked services
+ *       400:
+ *         description: Validation error (e.g., missing services, invalid service IDs, etc.)
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/services/booking', BookingsController.create);
+
+/**
+ * @swagger
+ * /api/mobile/services/{id}:
  *   get:
- *     summary: Get service details
+ *     summary: Get single service details
  *     tags: [Mobile]
  *     parameters:
  *       - in: path
@@ -151,6 +315,7 @@ router.get('/services', MobileController.getServices);
  *         required: true
  *         schema:
  *           type: string
+ *         description: Service ID
  *     responses:
  *       200:
  *         description: Service details

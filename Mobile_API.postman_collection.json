@@ -374,36 +374,58 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/api/mobile/services?search=&categoryId=&sortBy=&limit=20&offset=0",
+									"raw": "{{base_url}}/api/mobile/services?search=&categoryId=&serviceType=&worksExternal=&worksInVenues=&sortBy=rating&limit=20&offset=0",
 									"host": ["{{base_url}}"],
 									"path": ["api", "mobile", "services"],
 									"query": [
 										{
 											"key": "search",
 											"value": "",
-											"description": "Search term"
+											"description": "Search term (searches in name, nameAr, description, address)",
+											"disabled": true
 										},
 										{
 											"key": "categoryId",
 											"value": "",
-											"description": "Filter by category ID"
+											"description": "Filter by category ID",
+											"disabled": true
+										},
+										{
+											"key": "serviceType",
+											"value": "",
+											"description": "Filter by service type (FOOD_PROVIDER, PHOTOGRAPHER, etc.)",
+											"disabled": true
+										},
+										{
+											"key": "worksExternal",
+											"value": "",
+											"description": "Filter services that work externally (true/false)",
+											"disabled": true
+										},
+										{
+											"key": "worksInVenues",
+											"value": "",
+											"description": "Filter services that work in venues (true/false)",
+											"disabled": true
 										},
 										{
 											"key": "sortBy",
-											"value": "",
-											"description": "Sort by: rating, price_asc, price_desc"
+											"value": "rating",
+											"description": "Sort by: rating (default), price_asc, price_desc"
 										},
 										{
 											"key": "limit",
-											"value": "20"
+											"value": "20",
+											"description": "Number of results per page"
 										},
 										{
 											"key": "offset",
-											"value": "0"
+											"value": "0",
+											"description": "Pagination offset"
 										}
 									]
 								},
-								"description": "List all services with optional filters"
+								"description": "List all active services with optional filters. Supports filtering by category, service type, external/venue work capabilities, and search."
 							}
 						},
 						{
@@ -459,6 +481,32 @@
 									]
 								},
 								"description": "Check service availability (date required, startTime/endTime optional)"
+							}
+						},
+						{
+							"name": "Create Service-Only Booking (Multiple Services)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"date\": \"2026-02-01T18:00:00.000Z\",\n  \"startTime\": \"18:00\",\n  \"endTime\": \"20:00\",\n  \"location\": \"home\",\n  \"locationAddress\": \"الرياض - حي النرجس\",\n  \"locationLatitude\": 24.7136,\n  \"locationLongitude\": 46.6753,\n  \"totalAmount\": 200.00,\n  \"discount\": 0,\n  \"cardId\": \"card-id-here\",\n  \"notes\": \"حفلة عيد ميلاد\",\n  \"services\": [\n    {\n      \"serviceId\": \"srv_makeup_001\",\n      \"price\": 100.00,\n      \"startTime\": \"18:00\",\n      \"endTime\": \"19:00\",\n      \"locationType\": \"home\",\n      \"locationAddress\": \"الرياض - حي النرجس\"\n    },\n    {\n      \"serviceId\": \"srv_hair_001\",\n      \"price\": 100.00,\n      \"startTime\": \"19:00\",\n      \"endTime\": \"20:00\",\n      \"locationType\": \"home\",\n      \"locationAddress\": \"الرياض - حي النرجس\"\n    }\n  ]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/mobile/services/booking",
+									"host": ["{{base_url}}"],
+									"path": ["api", "mobile", "services", "booking"]
+								},
+								"description": "Create a service-only booking WITHOUT a venue. Supports booking MULTIPLE services in one booking (e.g., makeup + hair + nails). Do NOT include 'venueId' - this is for external service bookings only. Include 'cardId' to pay deposit immediately (30% of totalAmount). Each service in the 'services' array can have its own time and location details. After admin approval, user will receive notification to pay remaining amount."
 							}
 						}
 					]
