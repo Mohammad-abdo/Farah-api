@@ -174,6 +174,15 @@ class BookingsController {
         notes,
       } = req.body;
 
+      // Log request for debugging
+      console.log('📝 Creating booking:', {
+        userId: req.user.id,
+        servicesCount: services?.length || 0,
+        hasCardId: !!cardId,
+        cardIdValue: cardId,
+        totalAmount,
+      });
+
       // Validation
       if (!date) {
         throw new ValidationError('Date is required');
@@ -246,8 +255,9 @@ class BookingsController {
         }
       }
 
-      // Validate card if provided
-      if (cardId) {
+      // Validate card if provided (skip validation for placeholder values)
+      let validCardId = null;
+      if (cardId && cardId !== 'card-id-here' && cardId !== 'null' && cardId !== '') {
         const card = await prisma.creditCard.findFirst({
           where: {
             id: cardId,
@@ -259,6 +269,7 @@ class BookingsController {
         if (!card) {
           throw new ValidationError('Invalid credit card');
         }
+        validCardId = cardId;
       }
 
       // Generate booking number
@@ -272,9 +283,9 @@ class BookingsController {
       const remainingAmount = Math.round((finalAmount - depositAmount) * 100) / 100;
 
       // Determine payment method from card
-      let paymentMethod = 'CREDIT_CARD'; // Default when card is used
-      if (!cardId) {
-        paymentMethod = null; // No payment method if no card
+      let paymentMethod = null; // Default: no payment method
+      if (validCardId) {
+        paymentMethod = 'CREDIT_CARD'; // Set payment method only if valid card is provided
       }
 
       // Create booking with enhanced service support
@@ -299,11 +310,11 @@ class BookingsController {
           discount,
           finalAmount,
           depositAmount,
-          depositPaid: cardId ? true : false, // Deposit is paid if card is used
+          depositPaid: validCardId ? true : false, // Deposit is paid if card is used
           remainingAmount,
           remainingPaid: false, // Remaining amount not paid yet
           paymentMethod: paymentMethod,
-          paymentStatus: cardId ? 'PENDING' : 'PENDING', // Will be PAID only when both deposit and remaining are paid
+          paymentStatus: validCardId ? 'PENDING' : 'PENDING', // Will be PAID only when both deposit and remaining are paid
           notes,
           services: services && services.length > 0 ? {
             create: services.map((serviceBooking) => {
@@ -348,14 +359,14 @@ class BookingsController {
       });
 
       // Create payment record for deposit if card is used
-      if (cardId) {
+      if (validCardId) {
         await prisma.payment.create({
           data: {
             bookingId: booking.id,
             amount: depositAmount, // Only deposit amount
             method: 'CREDIT_CARD',
             status: 'PAID',
-            cardId: cardId,
+            cardId: validCardId,
           },
         });
       }
@@ -377,6 +388,14 @@ class BookingsController {
         booking,
       });
     } catch (error) {
+      // Log error details for debugging
+      console.error('❌ Error creating booking:', {
+        message: error.message,
+        code: error.code,
+        name: error.name,
+        stack: error.stack,
+        userId: req.user?.id,
+      });
       next(error);
     }
   }
