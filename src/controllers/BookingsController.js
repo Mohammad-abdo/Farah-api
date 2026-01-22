@@ -161,6 +161,7 @@ class BookingsController {
       const {
         venueId,
         date,
+        eventDate, // Alternative field name for date
         startTime,
         endTime,
         location,
@@ -168,30 +169,72 @@ class BookingsController {
         locationLatitude,
         locationLongitude,
         services = [],
+        serviceIds, // Alternative field name for services (array of IDs)
         totalAmount,
         discount = 0,
         cardId,
         notes,
+        guestCount, // Optional field
+        paymentMethod, // Optional field (will be handled separately)
       } = req.body;
 
       // Log request for debugging
       console.log('📝 Creating booking:', {
         userId: req.user.id,
         venueId,
-        servicesCount: services?.length || 0,
+        servicesCount: normalizedServices?.length || 0,
+        serviceIdsCount: serviceIds?.length || 0,
         hasCardId: !!cardId,
         cardIdValue: cardId,
         totalAmount,
-        date,
+        date: bookingDate,
+        eventDate,
         startTime,
         endTime,
         location,
         locationAddress,
       });
 
+      // Normalize date field - accept both 'date' and 'eventDate'
+      const bookingDate = date || eventDate;
+      
+      // Convert eventDate string to ISO format if needed
+      let normalizedDate = bookingDate;
+      if (bookingDate && typeof bookingDate === 'string' && !bookingDate.includes('T')) {
+        // If it's just a date string (YYYY-MM-DD), convert to ISO
+        normalizedDate = new Date(bookingDate).toISOString();
+      }
+      
       // Validation - Required fields
-      if (!date) {
-        throw new ValidationError('Date is required');
+      if (!bookingDate) {
+        throw new ValidationError('Date is required (use "date" or "eventDate" field)');
+      }
+      
+      // Normalize services - accept both 'services' array and 'serviceIds' array
+      let normalizedServices = services;
+      if (serviceIds && Array.isArray(serviceIds) && serviceIds.length > 0) {
+        // Convert serviceIds array to services array format
+        normalizedServices = serviceIds.map(id => ({
+          serviceId: id,
+          id: id,
+        }));
+      }
+      
+      // If both services and serviceIds provided, merge them
+      if (services && Array.isArray(services) && services.length > 0 && 
+          serviceIds && Array.isArray(serviceIds) && serviceIds.length > 0) {
+        // Merge both, avoiding duplicates
+        const existingIds = new Set(services.map(s => 
+          typeof s === 'string' ? s : (s.serviceId || s.id)
+        ));
+        serviceIds.forEach(id => {
+          if (!existingIds.has(id)) {
+            normalizedServices.push({
+              serviceId: id,
+              id: id,
+            });
+          }
+        });
       }
 
       // Validate venue if provided and get its services
@@ -245,15 +288,15 @@ class BookingsController {
         finalServices = [...venueServices];
         
         // Add provided services if any (avoid duplicates)
-        if (services && Array.isArray(services) && services.length > 0) {
+        if (normalizedServices && Array.isArray(normalizedServices) && normalizedServices.length > 0) {
           const providedServiceIds = new Set(
-            services.map(s => 
+            normalizedServices.map(s => 
               typeof s === 'string' ? s : (s.serviceId || s.id)
             )
           );
           
           // Add services that are not already in venue services
-          services.forEach(serviceBooking => {
+          normalizedServices.forEach(serviceBooking => {
             const serviceId = typeof serviceBooking === 'string' 
               ? serviceBooking 
               : (serviceBooking.serviceId || serviceBooking.id);
@@ -273,9 +316,9 @@ class BookingsController {
             }
           });
         }
-      } else if (services && Array.isArray(services) && services.length > 0) {
+      } else if (normalizedServices && Array.isArray(normalizedServices) && normalizedServices.length > 0) {
         // No venue or venue has no services, use provided services
-        finalServices = services.map(s => 
+        finalServices = normalizedServices.map(s => 
           typeof s === 'string' 
             ? { serviceId: s, id: s, price: 0 }
             : { ...s, serviceId: s.serviceId || s.id, id: s.serviceId || s.id }
@@ -398,10 +441,20 @@ class BookingsController {
       const depositAmount = Math.round((finalAmount * 0.3) * 100) / 100;
       const remainingAmount = Math.round((finalAmount - depositAmount) * 100) / 100;
 
-      // Determine payment method from card
-      let paymentMethod = null; // Default: no payment method
+      // Determine payment method from card or request body
+      let finalPaymentMethod = null; // Default: no payment method
       if (validCardId) {
-        paymentMethod = 'CREDIT_CARD'; // Set payment method only if valid card is provided
+        finalPaymentMethod = 'CREDIT_CARD'; // Set payment method only if valid card is provided
+      } else if (paymentMethod && paymentMethod !== 'null' && paymentMethod !== '') {
+        // Use paymentMethod from request body if provided (e.g., 'cash', 'CREDIT_CARD', etc.)
+        // Map common values to enum values
+        const paymentMethodMap = {
+          'cash': 'CASH',
+          'credit_card': 'CREDIT_CARD',
+          'creditcard': 'CREDIT_CARD',
+          'card': 'CREDIT_CARD',
+        };
+        finalPaymentMethod = paymentMethodMap[paymentMethod.toLowerCase()] || paymentMethod.toUpperCase();
       }
 
       // Create booking with enhanced service support
@@ -414,7 +467,8 @@ class BookingsController {
           customerId: req.user.id,
           venueId: finalVenueId, // Explicitly null for service-only bookings
           bookingType,
-          date: new Date(date),
+          date: new Date(normalizedDate),
+          eventDate: eventDate || bookingDate || null, // Store original eventDate if provided
           startTime: startTime || null,
           endTime: endTime || null,
           location: location || null,
@@ -429,9 +483,9 @@ class BookingsController {
           depositPaid: validCardId ? true : false, // Deposit is paid if card is used
           remainingAmount,
           remainingPaid: false, // Remaining amount not paid yet
-          paymentMethod: paymentMethod,
+          paymentMethod: finalPaymentMethod,
           paymentStatus: validCardId ? 'PENDING' : 'PENDING', // Will be PAID only when both deposit and remaining are paid
-          notes,
+          notes: notes || (guestCount ? `Guest count: ${guestCount}` : null),
           services: services && services.length > 0 ? {
             create: services.map((serviceBooking) => {
               // Handle both string IDs and full service objects
@@ -444,7 +498,7 @@ class BookingsController {
               // Use booking date if service date is not provided
               const serviceDate = serviceData.date 
                 ? new Date(serviceData.date) 
-                : new Date(date);
+                : new Date(normalizedDate);
 
               // Use booking times if service times are not provided
               const serviceStartTime = serviceData.startTime || startTime || null;
