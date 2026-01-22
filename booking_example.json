@@ -1,0 +1,23 @@
+{
+  "date": "2026-02-15T18:00:00.000Z",
+  "startTime": "18:00",
+  "endTime": "20:00",
+  "location": "home",
+  "locationAddress": "الرياض - حي النرجس - شارع الملك فهد",
+  "locationLatitude": 24.7136,
+  "locationLongitude": 46.6753,
+  "totalAmount": 400.00,
+  "discount": 0,
+  "notes": "حفلة عيد ميلاد",
+  "services": [
+    {
+      "serviceId": "REPLACE_WITH_REAL_SERVICE_UUID",
+      "price": 400.00,
+      "startTime": "18:00",
+      "endTime": "20:00",
+      "locationType": "home",
+      "locationAddress": "الرياض - حي النرجس"
+    }
+  ]
+}
+

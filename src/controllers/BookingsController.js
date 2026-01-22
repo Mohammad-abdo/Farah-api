@@ -212,7 +212,7 @@ class BookingsController {
           });
 
           if (!service) {
-            throw new ValidationError(`Service ${serviceId} not found`);
+            throw new NotFoundError('Service');
           }
 
           if (!service.isActive) {

@@ -1,0 +1,31 @@
+{
+  "date": "2026-02-15T18:00:00.000Z",
+  "startTime": "18:00",
+  "endTime": "22:00",
+  "location": "home",
+  "locationAddress": "الرياض - حي النرجس - شارع الملك فهد",
+  "locationLatitude": 24.7136,
+  "locationLongitude": 46.6753,
+  "totalAmount": 700.00,
+  "discount": 0,
+  "notes": "حفلة زفاف - مكياج وتصفيف شعر",
+  "services": [
+    {
+      "serviceId": "REPLACE_WITH_SERVICE_UUID_1",
+      "price": 400.00,
+      "startTime": "18:00",
+      "endTime": "20:00",
+      "locationType": "home",
+      "locationAddress": "الرياض - حي النرجس"
+    },
+    {
+      "serviceId": "REPLACE_WITH_SERVICE_UUID_2",
+      "price": 300.00,
+      "startTime": "20:00",
+      "endTime": "22:00",
+      "locationType": "home",
+      "locationAddress": "الرياض - حي النرجس"
+    }
+  ]
+}
+

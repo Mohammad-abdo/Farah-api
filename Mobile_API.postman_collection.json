@@ -499,14 +499,19 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"date\": \"2026-02-01T18:00:00.000Z\",\n  \"startTime\": \"18:00\",\n  \"endTime\": \"20:00\",\n  \"location\": \"home\",\n  \"locationAddress\": \"الرياض - حي النرجس\",\n  \"locationLatitude\": 24.7136,\n  \"locationLongitude\": 46.6753,\n  \"totalAmount\": 200.00,\n  \"discount\": 0,\n  \"cardId\": \"card-id-here\",\n  \"notes\": \"حفلة عيد ميلاد\",\n  \"services\": [\n    {\n      \"serviceId\": \"srv_makeup_001\",\n      \"price\": 100.00,\n      \"startTime\": \"18:00\",\n      \"endTime\": \"19:00\",\n      \"locationType\": \"home\",\n      \"locationAddress\": \"الرياض - حي النرجس\"\n    },\n    {\n      \"serviceId\": \"srv_hair_001\",\n      \"price\": 100.00,\n      \"startTime\": \"19:00\",\n      \"endTime\": \"20:00\",\n      \"locationType\": \"home\",\n      \"locationAddress\": \"الرياض - حي النرجس\"\n    }\n  ]\n}"
+									"raw": "{\n  \"date\": \"2026-02-15T18:00:00.000Z\",\n  \"startTime\": \"18:00\",\n  \"endTime\": \"20:00\",\n  \"location\": \"home\",\n  \"locationAddress\": \"الرياض - حي النرجس - شارع الملك فهد\",\n  \"locationLatitude\": 24.7136,\n  \"locationLongitude\": 46.6753,\n  \"totalAmount\": 400.00,\n  \"discount\": 0,\n  \"notes\": \"حفلة عيد ميلاد\",\n  \"services\": [\n    {\n      \"serviceId\": \"REPLACE_WITH_REAL_SERVICE_UUID\",\n      \"price\": 400.00,\n      \"startTime\": \"18:00\",\n      \"endTime\": \"20:00\",\n      \"locationType\": \"home\",\n      \"locationAddress\": \"الرياض - حي النرجس\"\n    }\n  ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
 								},
 								"url": {
 									"raw": "{{base_url}}/api/mobile/services/booking",
 									"host": ["{{base_url}}"],
 									"path": ["api", "mobile", "services", "booking"]
 								},
-								"description": "Create a service-only booking WITHOUT a venue. Supports booking MULTIPLE services in one booking (e.g., makeup + hair + nails). Do NOT include 'venueId' - this is for external service bookings only. Include 'cardId' to pay deposit immediately (30% of totalAmount). Each service in the 'services' array can have its own time and location details. After admin approval, user will receive notification to pay remaining amount."
+								"description": "Create a service-only booking WITHOUT a venue. Supports booking MULTIPLE services in one booking (e.g., makeup + hair + nails). Do NOT include 'venueId' - this is for external service bookings only. Include 'cardId' to pay deposit immediately (30% of totalAmount). Each service in the 'services' array can have its own time and location details. After admin approval, user will receive notification to pay remaining amount.\n\n⚠️ IMPORTANT: Replace 'REPLACE_WITH_REAL_SERVICE_UUID' with actual Service UUID from database!\n\nTo get valid Service IDs:\n1. Call GET /api/mobile/services to get list of all services\n2. Copy the 'id' field (UUID format like: 550e8400-e29b-41d4-a716-446655440000)\n3. Replace 'REPLACE_WITH_REAL_SERVICE_UUID' in the request body\n\nExample for multiple services:\n{\n  \"services\": [\n    {\n      \"serviceId\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"price\": 400.00\n    },\n    {\n      \"serviceId\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"price\": 300.00\n    }\n  ]\n}"
 							}
 						}
 					]
@@ -517,7 +522,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/api/mobile/categories",
+							"raw": "{{base_url}}/api/mobile/categories",	
 							"host": ["{{base_url}}"],
 							"path": ["api", "mobile", "categories"]
 						},
