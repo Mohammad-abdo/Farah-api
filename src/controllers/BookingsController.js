@@ -203,11 +203,7 @@ class BookingsController {
           include: {
             services: {
               include: {
-                service: {
-                  where: {
-                    isActive: true,
-                  },
-                },
+                service: true,
               },
             },
           },
@@ -543,7 +539,17 @@ class BookingsController {
         name: error.name,
         stack: error.stack,
         userId: req.user?.id,
+        requestBody: {
+          venueId: req.body.venueId,
+          servicesCount: req.body.services?.length || 0,
+          totalAmount: req.body.totalAmount,
+          date: req.body.date,
+        },
       });
+      
+      // Log full error for debugging
+      console.error('Full error object:', error);
+      
       next(error);
     }
   }

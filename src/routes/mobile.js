@@ -301,7 +301,7 @@ router.get('/services', MobileController.getServices);
  *       401:
  *         description: Unauthorized
  */
-router.post('/services/booking', BookingsController.create);
+router.post('/services/booking', authenticate, BookingsController.create);
 
 /**
  * @swagger
