@@ -177,21 +177,116 @@ class BookingsController {
       // Log request for debugging
       console.log('📝 Creating booking:', {
         userId: req.user.id,
+        venueId,
         servicesCount: services?.length || 0,
         hasCardId: !!cardId,
         cardIdValue: cardId,
         totalAmount,
+        date,
+        startTime,
+        endTime,
+        location,
+        locationAddress,
       });
 
-      // Validation
+      // Validation - Required fields
       if (!date) {
         throw new ValidationError('Date is required');
+      }
+
+      // Validate venue if provided and get its services
+      let venue = null;
+      let venueServices = [];
+      if (venueId && venueId !== 'null' && venueId !== '') {
+        venue = await prisma.venue.findUnique({
+          where: { id: venueId },
+          include: {
+            services: {
+              include: {
+                service: {
+                  where: {
+                    isActive: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        if (!venue) {
+          throw new NotFoundError('Venue');
+        }
+
+        if (!venue.isActive) {
+          throw new ValidationError('Venue is not active');
+        }
+
+        // Get all active services associated with this venue
+        venueServices = venue.services
+          .filter(vs => vs.service && vs.service.isActive)
+          .map(vs => ({
+            serviceId: vs.service.id,
+            id: vs.service.id,
+            price: vs.service.price,
+            name: vs.service.name,
+            nameAr: vs.service.nameAr,
+          }));
+        
+        console.log('📋 Venue services found:', venueServices.length);
       }
 
       // Determine booking type - explicitly check for null/undefined/empty
       // venueId can be null, undefined, or empty string - all mean no venue
       const hasVenue = venueId && venueId !== 'null' && venueId !== '';
-      const hasServices = services && Array.isArray(services) && services.length > 0;
+      
+      // Merge venue services with provided services
+      // If venue has services and no services provided, use venue services
+      // If both exist, merge them (avoid duplicates)
+      let finalServices = [];
+      
+      if (hasVenue && venueServices.length > 0) {
+        // Start with venue services
+        finalServices = [...venueServices];
+        
+        // Add provided services if any (avoid duplicates)
+        if (services && Array.isArray(services) && services.length > 0) {
+          const providedServiceIds = new Set(
+            services.map(s => 
+              typeof s === 'string' ? s : (s.serviceId || s.id)
+            )
+          );
+          
+          // Add services that are not already in venue services
+          services.forEach(serviceBooking => {
+            const serviceId = typeof serviceBooking === 'string' 
+              ? serviceBooking 
+              : (serviceBooking.serviceId || serviceBooking.id);
+            
+            if (!venueServices.some(vs => vs.serviceId === serviceId)) {
+              finalServices.push(
+                typeof serviceBooking === 'object' 
+                  ? { ...serviceBooking, serviceId: serviceId, id: serviceId }
+                  : { serviceId: serviceId, id: serviceId, price: 0 }
+              );
+            } else {
+              // Update price if provided
+              const index = finalServices.findIndex(vs => vs.serviceId === serviceId);
+              if (index !== -1 && typeof serviceBooking === 'object' && serviceBooking.price) {
+                finalServices[index].price = serviceBooking.price;
+              }
+            }
+          });
+        }
+      } else if (services && Array.isArray(services) && services.length > 0) {
+        // No venue or venue has no services, use provided services
+        finalServices = services.map(s => 
+          typeof s === 'string' 
+            ? { serviceId: s, id: s, price: 0 }
+            : { ...s, serviceId: s.serviceId || s.id, id: s.serviceId || s.id }
+        );
+      }
+      
+      const hasServices = finalServices.length > 0;
       
       let bookingType = 'MIXED';
       if (hasVenue && !hasServices) {
@@ -204,10 +299,35 @@ class BookingsController {
         // Neither venue nor services - this should be caught by validation
         throw new ValidationError('Booking must include either a venue or at least one service');
       }
+      
+      console.log('📦 Final services for booking:', finalServices.length, finalServices.map(s => s.serviceId || s.id));
 
-      // Validate services if provided
-      if (services && services.length > 0) {
-        for (const serviceBooking of services) {
+      // Calculate total amount if not provided (venue price + services prices)
+      let calculatedTotalAmount = totalAmount;
+      if (!calculatedTotalAmount || calculatedTotalAmount <= 0) {
+        let venuePrice = 0;
+        if (venue) {
+          venuePrice = venue.price || 0;
+        }
+        
+        let servicesPrice = 0;
+        if (finalServices.length > 0) {
+          servicesPrice = finalServices.reduce((sum, s) => {
+            return sum + (s.price || 0);
+          }, 0);
+        }
+        
+        calculatedTotalAmount = venuePrice + servicesPrice;
+        console.log('💰 Calculated total amount:', {
+          venuePrice,
+          servicesPrice,
+          total: calculatedTotalAmount,
+        });
+      }
+
+      // Validate services
+      if (finalServices && finalServices.length > 0) {
+        for (const serviceBooking of finalServices) {
           const serviceId = typeof serviceBooking === 'string' 
             ? serviceBooking 
             : (serviceBooking.serviceId || serviceBooking.id);
@@ -276,7 +396,7 @@ class BookingsController {
       const bookingNumber = `BK-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
       // Calculate final amount
-      const finalAmount = totalAmount - discount;
+      const finalAmount = calculatedTotalAmount - discount;
 
       // Calculate deposit (30% of final amount)
       const depositAmount = Math.round((finalAmount * 0.3) * 100) / 100;
@@ -306,7 +426,7 @@ class BookingsController {
           locationLatitude: locationLatitude || null,
           locationLongitude: locationLongitude || null,
           status: 'PENDING',
-          totalAmount,
+          totalAmount: calculatedTotalAmount,
           discount,
           finalAmount,
           depositAmount,
@@ -325,18 +445,46 @@ class BookingsController {
               
               const serviceData = typeof serviceBooking === 'object' ? serviceBooking : {};
 
+              // Use booking date if service date is not provided
+              const serviceDate = serviceData.date 
+                ? new Date(serviceData.date) 
+                : new Date(date);
+
+              // Use booking times if service times are not provided
+              const serviceStartTime = serviceData.startTime || startTime || null;
+              const serviceEndTime = serviceData.endTime || endTime || null;
+
+              // Use booking location if service location is not provided and venue exists
+              const serviceLocationType = serviceData.locationType 
+                || (finalVenueId ? 'venue' : null)
+                || null;
+
+              // Use booking location address if service location address is not provided
+              const serviceLocationAddress = serviceData.locationAddress 
+                || (serviceLocationType !== 'venue' ? locationAddress : null)
+                || null;
+
+              // Use booking coordinates if service coordinates are not provided
+              const serviceLocationLatitude = serviceData.locationLatitude 
+                || (serviceLocationType !== 'venue' ? locationLatitude : null)
+                || null;
+
+              const serviceLocationLongitude = serviceData.locationLongitude 
+                || (serviceLocationType !== 'venue' ? locationLongitude : null)
+                || null;
+
               return {
                 serviceId,
                 price: serviceData.price || 0,
-                date: serviceData.date ? new Date(serviceData.date) : null,
-                startTime: serviceData.startTime || null,
-                endTime: serviceData.endTime || null,
+                date: serviceDate,
+                startTime: serviceStartTime,
+                endTime: serviceEndTime,
                 duration: serviceData.duration || null,
-                locationType: serviceData.locationType || null,
-                locationAddress: serviceData.locationAddress || null,
-                locationLatitude: serviceData.locationLatitude || null,
-                locationLongitude: serviceData.locationLongitude || null,
-                notes: serviceData.notes || null,
+                locationType: serviceLocationType,
+                locationAddress: serviceLocationAddress,
+                locationLatitude: serviceLocationLatitude,
+                locationLongitude: serviceLocationLongitude,
+                notes: serviceData.notes || notes || null,
               };
             }),
           } : undefined,
