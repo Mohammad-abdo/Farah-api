@@ -178,23 +178,6 @@ class BookingsController {
         paymentMethod, // Optional field (will be handled separately)
       } = req.body;
 
-      // Log request for debugging
-      console.log('📝 Creating booking:', {
-        userId: req.user.id,
-        venueId,
-        servicesCount: normalizedServices?.length || 0,
-        serviceIdsCount: serviceIds?.length || 0,
-        hasCardId: !!cardId,
-        cardIdValue: cardId,
-        totalAmount,
-        date: bookingDate,
-        eventDate,
-        startTime,
-        endTime,
-        location,
-        locationAddress,
-      });
-
       // Normalize date field - accept both 'date' and 'eventDate'
       const bookingDate = date || eventDate;
       
@@ -252,6 +235,24 @@ class BookingsController {
           });
         }
       }
+
+      // Log request for debugging (after normalization)
+      console.log('📝 Creating booking:', {
+        userId: req.user.id,
+        venueId,
+        servicesCount: normalizedServices?.length || 0,
+        serviceIdsCount: serviceIds?.length || 0,
+        hasCardId: !!cardId,
+        cardIdValue: cardId,
+        totalAmount,
+        date: bookingDate,
+        eventDate,
+        normalizedDate,
+        startTime,
+        endTime,
+        location,
+        locationAddress,
+      });
 
       // Validate venue if provided and get its services
       let venue = null;
@@ -358,6 +359,7 @@ class BookingsController {
       console.log('📦 Final services for booking:', finalServices.length, finalServices.map(s => s.serviceId || s.id));
 
       // Calculate total amount if not provided (venue price + services prices)
+      // Note: This must be after finalServices is created
       let calculatedTotalAmount = totalAmount;
       if (!calculatedTotalAmount || calculatedTotalAmount <= 0 || isNaN(calculatedTotalAmount)) {
         let venuePrice = 0;
@@ -366,7 +368,7 @@ class BookingsController {
         }
         
         let servicesPrice = 0;
-        if (finalServices.length > 0) {
+        if (finalServices && finalServices.length > 0) {
           servicesPrice = finalServices.reduce((sum, s) => {
             return sum + (s.price || 0);
           }, 0);
@@ -378,6 +380,8 @@ class BookingsController {
           servicesPrice,
           total: calculatedTotalAmount,
         });
+      } else {
+        calculatedTotalAmount = parseFloat(totalAmount) || 0;
       }
 
       // Validate services
