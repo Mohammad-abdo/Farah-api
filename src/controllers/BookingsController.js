@@ -295,51 +295,23 @@ class BookingsController {
       // venueId can be null, undefined, or empty string - all mean no venue
       const hasVenue = venueId && venueId !== 'null' && venueId !== '';
       
-      // Merge venue services with provided services
-      // If venue has services and no services provided, use venue services
-      // If both exist, merge them (avoid duplicates)
+      // Use provided services first, only add venue services if no services provided
+      // This prevents automatically adding all venue services when user sends specific services
       let finalServices = [];
       
-      if (hasVenue && venueServices.length > 0) {
-        // Start with venue services
-        finalServices = [...venueServices];
-        
-        // Add provided services if any (avoid duplicates)
-        if (normalizedServices && Array.isArray(normalizedServices) && normalizedServices.length > 0) {
-          const providedServiceIds = new Set(
-            normalizedServices.map(s => 
-              typeof s === 'string' ? s : (s.serviceId || s.id)
-            )
-          );
-          
-          // Add services that are not already in venue services
-          normalizedServices.forEach(serviceBooking => {
-            const serviceId = typeof serviceBooking === 'string' 
-              ? serviceBooking 
-              : (serviceBooking.serviceId || serviceBooking.id);
-            
-            if (!venueServices.some(vs => vs.serviceId === serviceId)) {
-              finalServices.push(
-                typeof serviceBooking === 'object' 
-                  ? { ...serviceBooking, serviceId: serviceId, id: serviceId }
-                  : { serviceId: serviceId, id: serviceId, price: 0 }
-              );
-            } else {
-              // Update price if provided
-              const index = finalServices.findIndex(vs => vs.serviceId === serviceId);
-              if (index !== -1 && typeof serviceBooking === 'object' && serviceBooking.price) {
-                finalServices[index].price = serviceBooking.price;
-              }
-            }
-          });
-        }
-      } else if (normalizedServices && Array.isArray(normalizedServices) && normalizedServices.length > 0) {
-        // No venue or venue has no services, use provided services
+      // If user provided services, use them (don't auto-add venue services)
+      if (normalizedServices && Array.isArray(normalizedServices) && normalizedServices.length > 0) {
         finalServices = normalizedServices.map(s => 
           typeof s === 'string' 
             ? { serviceId: s, id: s, price: 0 }
             : { ...s, serviceId: s.serviceId || s.id, id: s.serviceId || s.id }
         );
+      } 
+      // Only auto-add venue services if NO services were provided by user
+      else if (hasVenue && venueServices.length > 0) {
+        // User booked venue only, add all venue services automatically
+        finalServices = [...venueServices];
+        console.log('📋 Auto-adding venue services (no services provided by user):', venueServices.length);
       }
       
       const hasServices = finalServices.length > 0;
