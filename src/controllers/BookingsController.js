@@ -200,9 +200,18 @@ class BookingsController {
       
       // Convert eventDate string to ISO format if needed
       let normalizedDate = bookingDate;
-      if (bookingDate && typeof bookingDate === 'string' && !bookingDate.includes('T')) {
-        // If it's just a date string (YYYY-MM-DD), convert to ISO
-        normalizedDate = new Date(bookingDate).toISOString();
+      if (bookingDate) {
+        if (typeof bookingDate === 'string') {
+          // If it's just a date string (YYYY-MM-DD), convert to ISO
+          if (!bookingDate.includes('T') && !bookingDate.includes('Z')) {
+            // Add time if not present (default to midnight UTC)
+            normalizedDate = new Date(bookingDate + 'T00:00:00.000Z').toISOString();
+          } else {
+            normalizedDate = bookingDate;
+          }
+        } else if (bookingDate instanceof Date) {
+          normalizedDate = bookingDate.toISOString();
+        }
       }
       
       // Validation - Required fields
@@ -210,31 +219,38 @@ class BookingsController {
         throw new ValidationError('Date is required (use "date" or "eventDate" field)');
       }
       
+      // Validate normalizedDate is valid
+      if (normalizedDate && isNaN(new Date(normalizedDate).getTime())) {
+        throw new ValidationError('Invalid date format');
+      }
+      
       // Normalize services - accept both 'services' array and 'serviceIds' array
-      let normalizedServices = services;
+      let normalizedServices = Array.isArray(services) ? services : [];
+      
       if (serviceIds && Array.isArray(serviceIds) && serviceIds.length > 0) {
         // Convert serviceIds array to services array format
-        normalizedServices = serviceIds.map(id => ({
+        const serviceIdsArray = serviceIds.map(id => ({
           serviceId: id,
           id: id,
         }));
-      }
-      
-      // If both services and serviceIds provided, merge them
-      if (services && Array.isArray(services) && services.length > 0 && 
-          serviceIds && Array.isArray(serviceIds) && serviceIds.length > 0) {
-        // Merge both, avoiding duplicates
-        const existingIds = new Set(services.map(s => 
-          typeof s === 'string' ? s : (s.serviceId || s.id)
-        ));
-        serviceIds.forEach(id => {
-          if (!existingIds.has(id)) {
-            normalizedServices.push({
-              serviceId: id,
-              id: id,
-            });
-          }
-        });
+        
+        // If normalizedServices is empty, use serviceIds
+        if (normalizedServices.length === 0) {
+          normalizedServices = serviceIdsArray;
+        } else {
+          // Merge both, avoiding duplicates
+          const existingIds = new Set(normalizedServices.map(s => 
+            typeof s === 'string' ? s : (s.serviceId || s.id)
+          ));
+          serviceIds.forEach(id => {
+            if (!existingIds.has(id)) {
+              normalizedServices.push({
+                serviceId: id,
+                id: id,
+              });
+            }
+          });
+        }
       }
 
       // Validate venue if provided and get its services
@@ -343,7 +359,7 @@ class BookingsController {
 
       // Calculate total amount if not provided (venue price + services prices)
       let calculatedTotalAmount = totalAmount;
-      if (!calculatedTotalAmount || calculatedTotalAmount <= 0) {
+      if (!calculatedTotalAmount || calculatedTotalAmount <= 0 || isNaN(calculatedTotalAmount)) {
         let venuePrice = 0;
         if (venue) {
           venuePrice = venue.price || 0;
