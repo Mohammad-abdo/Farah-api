@@ -301,11 +301,37 @@ class BookingsController {
       
       // If user provided services, use them (don't auto-add venue services)
       if (normalizedServices && Array.isArray(normalizedServices) && normalizedServices.length > 0) {
-        finalServices = normalizedServices.map(s => 
-          typeof s === 'string' 
-            ? { serviceId: s, id: s, price: 0 }
-            : { ...s, serviceId: s.serviceId || s.id, id: s.serviceId || s.id }
-        );
+        // Map services and fetch prices from database if not provided
+        finalServices = await Promise.all(normalizedServices.map(async (s) => {
+          const serviceId = typeof s === 'string' 
+            ? s 
+            : (s.serviceId || s.id);
+          
+          // If price is not provided, fetch it from database
+          if (typeof s === 'string' || !s.price || s.price === 0) {
+            const service = await prisma.service.findUnique({
+              where: { id: serviceId },
+              select: { id: true, price: true, name: true },
+            });
+            
+            if (!service) {
+              throw new NotFoundError('Service');
+            }
+            
+            return {
+              serviceId: serviceId,
+              id: serviceId,
+              price: service.price || 0, // ✅ جلب السعر من قاعدة البيانات
+            };
+          }
+          
+          // Price is provided, use it
+          return {
+            ...s,
+            serviceId: s.serviceId || s.id,
+            id: s.serviceId || s.id,
+          };
+        }));
       } 
       // Only auto-add venue services if NO services were provided by user
       else if (hasVenue && venueServices.length > 0) {
@@ -423,6 +449,87 @@ class BookingsController {
         validCardId = cardId;
       }
 
+      // Validate venue availability (check for conflicts and holidays)
+      if (hasVenue && venue && startTime && endTime) {
+        // 1. Check for VenueHoliday (blocked dates)
+        const bookingDateObj = new Date(normalizedDate);
+        const startOfDay = new Date(bookingDateObj);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(bookingDateObj);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const holiday = await prisma.venueHoliday.findFirst({
+          where: {
+            venueId: venueId,
+            date: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+          },
+        });
+
+        if (holiday) {
+          throw new ValidationError(`Venue is not available on this date: ${holiday.reason || 'Holiday'}`);
+        }
+
+        // 2. Check working hours
+        const workStart = venue.workingHoursStart || '09:00';
+        const workEnd = venue.workingHoursEnd || '22:00';
+        
+        const [startHour, startMin] = startTime.split(':').map(Number);
+        const [endHour, endMin] = endTime.split(':').map(Number);
+        const [workStartHour, workStartMin] = workStart.split(':').map(Number);
+        const [workEndHour, workEndMin] = workEnd.split(':').map(Number);
+
+        // Convert to minutes for easier comparison
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+        const workStartMinutes = workStartHour * 60 + workStartMin;
+        const workEndMinutes = workEndHour * 60 + workEndMin;
+
+        if (startMinutes < workStartMinutes || endMinutes > workEndMinutes) {
+          throw new ValidationError(`Booking time must be within working hours (${workStart} - ${workEnd})`);
+        }
+
+        // 3. Check for conflicts with other bookings (double booking prevention)
+        const conflictingBookings = await prisma.booking.findMany({
+          where: {
+            venueId: venueId,
+            date: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+            status: {
+              not: 'CANCELLED',
+            },
+            OR: [
+              {
+                AND: [
+                  { startTime: { lte: startTime } },
+                  { endTime: { gt: startTime } },
+                ],
+              },
+              {
+                AND: [
+                  { startTime: { lt: endTime } },
+                  { endTime: { gte: endTime } },
+                ],
+              },
+              {
+                AND: [
+                  { startTime: { gte: startTime } },
+                  { endTime: { lte: endTime } },
+                ],
+              },
+            ],
+          },
+        });
+
+        if (conflictingBookings.length > 0) {
+          throw new ValidationError('Time slot conflicts with existing booking. Please choose a different time.');
+        }
+      }
+
       // Generate booking number
       const bookingNumber = `BK-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
@@ -478,8 +585,8 @@ class BookingsController {
           paymentMethod: finalPaymentMethod,
           paymentStatus: validCardId ? 'PENDING' : 'PENDING', // Will be PAID only when both deposit and remaining are paid
           notes: notes || (guestCount ? `Guest count: ${guestCount}` : null),
-          services: services && services.length > 0 ? {
-            create: services.map((serviceBooking) => {
+          services: finalServices && finalServices.length > 0 ? {
+            create: finalServices.map((serviceBooking) => {
               // Handle both string IDs and full service objects
               const serviceId = typeof serviceBooking === 'string' 
                 ? serviceBooking 
@@ -724,8 +831,9 @@ class BookingsController {
         throw new ValidationError('No deposit amount to pay');
       }
 
-      // Validate card if provided
-      if (cardId) {
+      // Validate card if provided (skip validation for placeholder values)
+      let validCardId = null;
+      if (cardId && cardId !== 'card-id-here' && cardId !== 'null' && cardId !== '') {
         const card = await prisma.creditCard.findFirst({
           where: {
             id: cardId,
@@ -735,8 +843,16 @@ class BookingsController {
         });
 
         if (!card) {
+          console.error('❌ Credit card not found:', {
+            cardId,
+            userId: req.user.id,
+            bookingId: id,
+          });
           throw new ValidationError('Invalid credit card');
         }
+        validCardId = cardId;
+      } else if (cardId) {
+        console.log('⚠️ Skipping card validation for placeholder:', cardId);
       }
 
       // Update booking to mark deposit as paid
@@ -744,7 +860,7 @@ class BookingsController {
         where: { id },
         data: {
           depositPaid: true,
-          paymentMethod: cardId ? 'CREDIT_CARD' : booking.paymentMethod,
+          paymentMethod: validCardId ? 'CREDIT_CARD' : (booking.paymentMethod || 'CASH'),
         },
         include: {
           customer: {
@@ -765,14 +881,14 @@ class BookingsController {
       });
 
       // Create payment record for deposit amount
-      if (cardId) {
+      if (validCardId) {
         await prisma.payment.create({
           data: {
             bookingId: booking.id,
             amount: booking.depositAmount,
             method: 'CREDIT_CARD',
             status: 'PAID',
-            cardId: cardId,
+            cardId: validCardId,
           },
         });
       }
