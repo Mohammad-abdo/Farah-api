@@ -895,11 +895,31 @@ async function main() {
       },
     });
 
+    const bankAcc = await prisma.vendorBankAccount.create({
+      data: {
+        userId: user.id, bankName: 'National Bank of Kuwait', bankNameAr: 'بنك الكويت الوطني',
+        accountName: mv.user.name, accountNumber: '0012' + user.phone.slice(-7), iban: 'KW81NBOK0000000000' + user.phone.slice(-7),
+        swiftCode: 'NABORKKW', isDefault: true,
+      },
+    });
+
+    await prisma.withdrawalRequest.create({
+      data: { userId: user.id, bankAccountId: bankAcc.id, amount: 20, status: 'COMPLETED', adminNote: 'تم التحويل بنجاح', processedAt: new Date() },
+    });
+    await prisma.withdrawalRequest.create({
+      data: { userId: user.id, bankAccountId: bankAcc.id, amount: 15, status: 'PENDING', vendorNote: 'أحتاج المبلغ بشكل عاجل' },
+    });
+
+    await prisma.vendorTransaction.create({
+      data: { userId: user.id, type: 'DEBIT', category: 'WITHDRAWAL', amount: 20, netAmount: -20, status: 'COMPLETED', description: 'سحب إلى بنك الكويت الوطني', paymentMethod: 'Bank' },
+    });
+
     await prisma.vendorWallet.update({
       where: { id: wallet.id },
       data: {
-        balance: Math.round((totalEarnings + 50) * 100) / 100,
+        balance: Math.round((totalEarnings + 50 - 20) * 100) / 100,
         totalEarnings: Math.round((totalEarnings + 50) * 100) / 100,
+        totalWithdrawn: 20,
         totalCommissionPaid: Math.round(totalCommission * 100) / 100,
       },
     });
@@ -908,13 +928,14 @@ async function main() {
       { userId: user.id, title: 'مرحباً بك في فرح!', message: 'تم تفعيل حسابك بنجاح. ابدأ بإضافة خدماتك الآن.', type: 'SUCCESS', category: 'SYSTEM' },
       { userId: user.id, title: 'طلب جديد #MV-' + user.phone.slice(-4) + '-006', message: 'لديك طلب جديد من سارة الدوسري بانتظار الموافقة.', type: 'INFO', category: 'BOOKING' },
       { userId: user.id, title: 'تم تسليم الطلب', message: 'تم تسليم الطلب #MV-' + user.phone.slice(-4) + '-001 بنجاح لنورة الفهد.', type: 'SUCCESS', category: 'BOOKING' },
-      { userId: user.id, title: 'تقييم جديد ⭐⭐⭐⭐⭐', message: 'حصلت على تقييم 5 نجوم من مريم العلي! "خدمة ممتازة وسريعة"', type: 'INFO', category: 'REVIEW' },
+      { userId: user.id, title: 'تقييم جديد', message: 'حصلت على تقييم 5 نجوم من مريم العلي! "خدمة ممتازة وسريعة"', type: 'INFO', category: 'REVIEW' },
       { userId: user.id, title: 'تم إيداع مبلغ في محفظتك', message: `تم إيداع ${Math.round(totalEarnings)} د.ك في محفظتك من الطلبات المكتملة.`, type: 'SUCCESS', category: 'PAYMENT' },
-      { userId: user.id, title: 'تحديث النظام', message: 'تم تحديث التطبيق إلى الإصدار الجديد. تمتع بالمزايا الجديدة!', type: 'INFO', category: 'SYSTEM' },
+      { userId: user.id, title: 'تم سحب 20 د.ك', message: 'تم تحويل 20 د.ك إلى حسابك في بنك الكويت الوطني.', type: 'SUCCESS', category: 'PAYMENT' },
+      { userId: user.id, title: 'طلب سحب جديد', message: 'طلب سحب 15 د.ك قيد المراجعة من الإدارة.', type: 'INFO', category: 'PAYMENT' },
       { userId: user.id, title: 'تذكير: طلب قيد التوصيل', message: 'الطلب #MV-' + user.phone.slice(-4) + '-005 في طريقه للعميل يوسف الحربي.', type: 'WARNING', category: 'BOOKING' },
     ]});
 
-    console.log(`   ✅ ${mv.profile.businessNameAr} (${mv.user.phone} / 123456) → ${vendorSvcs.length} services, 6 orders, ${Math.round(totalEarnings + 50)} د.ك wallet`);
+    console.log(`   ✅ ${mv.profile.businessNameAr} (${mv.user.phone} / 123456) → ${vendorSvcs.length} services, 6 orders, bank acc, withdrawals`);
   }
 
   console.log('\n🎉 Seed completed successfully!');

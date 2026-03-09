@@ -709,4 +709,18 @@ router.get('/wallet', VendorController.getWallet);
  */
 router.get('/wallet/transactions', VendorController.getTransactions);
 
+// Financial Report
+router.get('/financial-report', VendorController.getFinancialReport);
+
+// Bank Accounts
+router.get('/bank-accounts', VendorController.getBankAccounts);
+router.post('/bank-accounts', VendorController.addBankAccount);
+router.patch('/bank-accounts/:id', VendorController.updateBankAccount);
+router.delete('/bank-accounts/:id', VendorController.deleteBankAccount);
+
+// Withdrawal Requests
+router.get('/withdrawals', VendorController.getWithdrawals);
+router.post('/withdrawals', VendorController.requestWithdrawal);
+router.patch('/withdrawals/:id/cancel', VendorController.cancelWithdrawal);
+
 module.exports = router;

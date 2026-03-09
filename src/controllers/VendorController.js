@@ -428,35 +428,6 @@ class VendorController {
   }
 
   /**
-   * GET /api/mobile/vendor/orders/:id
-   */
-  static async getOrderById(req, res) {
-    try {
-      const { id } = req.params;
-
-      const order = await prisma.vendorOrder.findUnique({
-        where: { id },
-        include: {
-          items: {
-            include: {
-              service: true,
-            },
-          },
-        },
-      });
-
-      if (!order || order.userId !== req.vendor.id) {
-        return res.status(404).json({ success: false, error: 'الطلب غير موجود' });
-      }
-
-      return res.json({ success: true, order });
-    } catch (error) {
-      console.error('getOrderById error:', error);
-      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
-    }
-  }
-
-  /**
    * PATCH /api/mobile/vendor/orders/:id/accept
    */
   static async acceptOrder(req, res) {
@@ -781,6 +752,252 @@ class VendorController {
       return res.json({ success: true, message: 'تم تحديث كلمة السر' });
     } catch (error) {
       console.error('updatePassword error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  // ── Bank Accounts ─────────────────────────────────────────────────────
+
+  static async getBankAccounts(req, res) {
+    try {
+      const accounts = await prisma.vendorBankAccount.findMany({
+        where: { userId: req.vendor.id, isActive: true },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+      });
+      return res.json({ success: true, accounts });
+    } catch (error) {
+      console.error('getBankAccounts error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  static async addBankAccount(req, res) {
+    try {
+      const { bankName, bankNameAr, accountName, accountNumber, iban, swiftCode, isDefault } = req.body;
+      if (!bankName || !accountName || !accountNumber) {
+        return res.status(400).json({ success: false, error: 'اسم البنك واسم صاحب الحساب ورقم الحساب مطلوبين' });
+      }
+
+      if (isDefault) {
+        await prisma.vendorBankAccount.updateMany({ where: { userId: req.vendor.id }, data: { isDefault: false } });
+      }
+
+      const account = await prisma.vendorBankAccount.create({
+        data: {
+          userId: req.vendor.id, bankName, bankNameAr: bankNameAr || null,
+          accountName, accountNumber, iban: iban || null, swiftCode: swiftCode || null,
+          isDefault: isDefault || false,
+        },
+      });
+      return res.status(201).json({ success: true, account });
+    } catch (error) {
+      console.error('addBankAccount error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  static async updateBankAccount(req, res) {
+    try {
+      const { id } = req.params;
+      const existing = await prisma.vendorBankAccount.findFirst({ where: { id, userId: req.vendor.id } });
+      if (!existing) return res.status(404).json({ success: false, error: 'الحساب غير موجود' });
+
+      const { bankName, bankNameAr, accountName, accountNumber, iban, swiftCode, isDefault } = req.body;
+      if (isDefault) {
+        await prisma.vendorBankAccount.updateMany({ where: { userId: req.vendor.id, id: { not: id } }, data: { isDefault: false } });
+      }
+
+      const account = await prisma.vendorBankAccount.update({
+        where: { id },
+        data: { bankName, bankNameAr, accountName, accountNumber, iban, swiftCode, isDefault },
+      });
+      return res.json({ success: true, account });
+    } catch (error) {
+      console.error('updateBankAccount error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  static async deleteBankAccount(req, res) {
+    try {
+      const { id } = req.params;
+      const existing = await prisma.vendorBankAccount.findFirst({ where: { id, userId: req.vendor.id } });
+      if (!existing) return res.status(404).json({ success: false, error: 'الحساب غير موجود' });
+
+      await prisma.vendorBankAccount.update({ where: { id }, data: { isActive: false } });
+      return res.json({ success: true, message: 'تم حذف الحساب البنكي' });
+    } catch (error) {
+      console.error('deleteBankAccount error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  // ── Withdrawal Requests ───────────────────────────────────────────────
+
+  static async getWithdrawals(req, res) {
+    try {
+      const { page = 1, limit = 20, status } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const where = { userId: req.vendor.id };
+      if (status) where.status = status.toUpperCase();
+
+      const [withdrawals, total] = await Promise.all([
+        prisma.withdrawalRequest.findMany({
+          where,
+          include: { bankAccount: { select: { bankName: true, bankNameAr: true, accountNumber: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          skip,
+        }),
+        prisma.withdrawalRequest.count({ where }),
+      ]);
+      return res.json({ success: true, withdrawals, total, page: parseInt(page), limit: parseInt(limit) });
+    } catch (error) {
+      console.error('getWithdrawals error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  static async requestWithdrawal(req, res) {
+    try {
+      const { amount, bankAccountId, vendorNote } = req.body;
+      if (!amount || parseFloat(amount) <= 0) {
+        return res.status(400).json({ success: false, error: 'المبلغ المطلوب غير صحيح' });
+      }
+
+      const wallet = await prisma.vendorWallet.findUnique({ where: { userId: req.vendor.id } });
+      if (!wallet) return res.status(400).json({ success: false, error: 'المحفظة غير موجودة' });
+      if (wallet.isFrozen) return res.status(400).json({ success: false, error: 'المحفظة مجمدة' });
+      if (wallet.balance < parseFloat(amount)) {
+        return res.status(400).json({ success: false, error: 'رصيد غير كافٍ' });
+      }
+
+      const pendingTotal = await prisma.withdrawalRequest.aggregate({
+        where: { userId: req.vendor.id, status: { in: ['PENDING', 'APPROVED', 'PROCESSING'] } },
+        _sum: { amount: true },
+      });
+      if ((pendingTotal._sum.amount || 0) + parseFloat(amount) > wallet.balance) {
+        return res.status(400).json({ success: false, error: 'لديك طلبات سحب معلقة تتجاوز رصيدك' });
+      }
+
+      if (bankAccountId) {
+        const bankAcc = await prisma.vendorBankAccount.findFirst({ where: { id: bankAccountId, userId: req.vendor.id, isActive: true } });
+        if (!bankAcc) return res.status(400).json({ success: false, error: 'الحساب البنكي غير موجود' });
+      }
+
+      const withdrawal = await prisma.withdrawalRequest.create({
+        data: {
+          userId: req.vendor.id,
+          amount: parseFloat(amount),
+          bankAccountId: bankAccountId || null,
+          vendorNote: vendorNote || null,
+        },
+        include: { bankAccount: { select: { bankName: true, accountNumber: true } } },
+      });
+
+      await prisma.notification.create({
+        data: {
+          userId: req.vendor.id,
+          title: 'طلب سحب جديد',
+          message: `تم تقديم طلب سحب بمبلغ ${parseFloat(amount)} د.ك وهو قيد المراجعة`,
+          type: 'INFO',
+          category: 'PAYMENT',
+        },
+      });
+
+      return res.status(201).json({ success: true, withdrawal });
+    } catch (error) {
+      console.error('requestWithdrawal error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  static async cancelWithdrawal(req, res) {
+    try {
+      const { id } = req.params;
+      const existing = await prisma.withdrawalRequest.findFirst({ where: { id, userId: req.vendor.id } });
+      if (!existing) return res.status(404).json({ success: false, error: 'الطلب غير موجود' });
+      if (existing.status !== 'PENDING') {
+        return res.status(400).json({ success: false, error: 'لا يمكن إلغاء هذا الطلب' });
+      }
+
+      const withdrawal = await prisma.withdrawalRequest.update({ where: { id }, data: { status: 'REJECTED', adminNote: 'تم الإلغاء بواسطة التاجر' } });
+      return res.json({ success: true, withdrawal });
+    } catch (error) {
+      console.error('cancelWithdrawal error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  // ── Financial Reports ─────────────────────────────────────────────────
+
+  static async getFinancialReport(req, res) {
+    try {
+      const userId = req.vendor.id;
+      const { period } = req.query;
+
+      const now = new Date();
+      let dateFrom;
+      if (period === 'today') dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      else if (period === 'week') { dateFrom = new Date(now); dateFrom.setDate(dateFrom.getDate() - 7); }
+      else if (period === 'month') dateFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+      else if (period === 'year') dateFrom = new Date(now.getFullYear(), 0, 1);
+      else dateFrom = null;
+
+      const dateFilter = dateFrom ? { createdAt: { gte: dateFrom } } : {};
+
+      const [wallet, totalIncome, totalCommission, totalWithdrawals, orderStats, txns] = await Promise.all([
+        prisma.vendorWallet.findUnique({ where: { userId } }),
+        prisma.vendorTransaction.aggregate({ where: { userId, type: 'CREDIT', category: 'ORDER_INCOME', ...dateFilter }, _sum: { amount: true, netAmount: true }, _count: true }),
+        prisma.vendorTransaction.aggregate({ where: { userId, type: 'DEBIT', category: 'COMMISSION_DEDUCTION', ...dateFilter }, _sum: { amount: true }, _count: true }),
+        prisma.vendorTransaction.aggregate({ where: { userId, type: 'DEBIT', category: 'WITHDRAWAL', ...dateFilter }, _sum: { amount: true }, _count: true }),
+        prisma.vendorOrder.groupBy({ by: ['status'], where: { userId, ...dateFilter }, _count: true }),
+        prisma.vendorTransaction.findMany({ where: { userId, ...dateFilter }, orderBy: { createdAt: 'desc' }, take: 10 }),
+      ]);
+
+      const ordersByStatus = {};
+      orderStats.forEach(s => { ordersByStatus[s.status] = s._count; });
+
+      return res.json({
+        success: true,
+        report: {
+          period: period || 'all',
+          wallet: { balance: wallet?.balance || 0, totalEarnings: wallet?.totalEarnings || 0, totalWithdrawn: wallet?.totalWithdrawn || 0, totalCommissionPaid: wallet?.totalCommissionPaid || 0, pendingBalance: wallet?.pendingBalance || 0 },
+          income: { total: totalIncome._sum.amount || 0, netTotal: totalIncome._sum.netAmount || 0, count: totalIncome._count },
+          commission: { total: totalCommission._sum.amount || 0, count: totalCommission._count },
+          withdrawals: { total: totalWithdrawals._sum.amount || 0, count: totalWithdrawals._count },
+          orders: ordersByStatus,
+          recentTransactions: txns,
+        },
+      });
+    } catch (error) {
+      console.error('getFinancialReport error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  // ── Order Detail ──────────────────────────────────────────────────────
+
+  static async getOrderById(req, res) {
+    try {
+      const { id } = req.params;
+      const order = await prisma.vendorOrder.findFirst({
+        where: { id, userId: req.vendor.id },
+        include: {
+          items: { include: { service: { select: { id: true, name: true, nameAr: true, price: true, images: true } } } },
+          vendorLocation: { select: { id: true, locationName: true, address: true, city: true, area: true, latitude: true, longitude: true } },
+        },
+      });
+      if (!order) return res.status(404).json({ success: false, error: 'الطلب غير موجود' });
+
+      const transactions = await prisma.vendorTransaction.findMany({
+        where: { referenceOrderId: id },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return res.json({ success: true, order, transactions });
+    } catch (error) {
+      console.error('getOrderById error:', error);
       return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
     }
   }
