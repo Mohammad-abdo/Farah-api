@@ -112,6 +112,13 @@ class SettingsController {
         appStoreUrl,
         shareMessage,
         shareMessageAr,
+        currencyName,
+        currencySymbol,
+        currencyCode,
+        currencyDecimals,
+        currencyPosition,
+        commissionType,
+        commissionValue,
       } = req.body;
 
       // Handle file uploads (new method - preferred)
@@ -242,6 +249,13 @@ class SettingsController {
         if (appStoreUrl !== undefined) updateData.appStoreUrl = appStoreUrl || null;
         if (shareMessage !== undefined) updateData.shareMessage = shareMessage || null;
         if (shareMessageAr !== undefined) updateData.shareMessageAr = shareMessageAr || null;
+        if (currencyName !== undefined) updateData.currencyName = currencyName || null;
+        if (currencySymbol !== undefined) updateData.currencySymbol = currencySymbol || null;
+        if (currencyCode !== undefined) updateData.currencyCode = currencyCode || null;
+        if (currencyDecimals !== undefined) updateData.currencyDecimals = currencyDecimals != null ? parseInt(currencyDecimals, 10) : undefined;
+        if (currencyPosition !== undefined) updateData.currencyPosition = currencyPosition === 'BEFORE' || currencyPosition === 'AFTER' ? currencyPosition : null;
+        if (commissionType !== undefined) updateData.commissionType = commissionType === 'PERCENTAGE' || commissionType === 'FIXED' ? commissionType : null;
+        if (commissionValue !== undefined) updateData.commissionValue = commissionValue != null ? parseFloat(commissionValue) : undefined;
         
         settings = await prisma.appSettings.update({
           where: { id: settings.id },

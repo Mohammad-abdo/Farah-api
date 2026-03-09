@@ -266,19 +266,32 @@ class AdminController {
       const bcrypt = require('bcryptjs');
       const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
 
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          name: finalName,
-          nameAr: finalNameAr,
-          phone,
-          email: email || null,
-          password: hashedPassword,
-          location: location || null,
-          locationAr: locationAr || location || null,
-          role: role || 'CUSTOMER',
-          isActive: isActive !== undefined ? isActive : true,
-        },
+      const userRole = (role || 'CUSTOMER').toUpperCase();
+      const user = await prisma.$transaction(async (tx) => {
+        const u = await tx.user.create({
+          data: {
+            name: finalName,
+            nameAr: finalNameAr,
+            phone,
+            email: email || null,
+            password: hashedPassword,
+            location: location || null,
+            locationAr: locationAr || location || null,
+            role: userRole,
+            isActive: isActive !== undefined ? isActive : true,
+          },
+        });
+        if (userRole === 'PROVIDER') {
+          await tx.vendorProfile.create({
+            data: { userId: u.id, vendorType: 'RESTAURANT', status: 'PENDING' },
+          });
+          await tx.vendorWallet.create({ data: { userId: u.id } });
+        }
+        return u;
+      });
+
+      const userSelect = await prisma.user.findUnique({
+        where: { id: user.id },
         select: {
           id: true,
           name: true,
@@ -296,7 +309,7 @@ class AdminController {
 
       res.status(201).json({
         success: true,
-        user,
+        user: userSelect,
         message: 'User created successfully',
       });
     } catch (error) {
@@ -2541,6 +2554,946 @@ class AdminController {
         success: true,
         service,
         message: 'Service pricing updated successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // =====================================================
+  // VENDOR MANAGEMENT
+  // =====================================================
+
+  /**
+   * GET /api/admin/vendors — users WHERE role = 'PROVIDER' (مزود الخدمة = المورد)
+   * Query: status, page, limit, search
+   */
+  static async getVendors(req, res, next) {
+    try {
+      const { status, page = 1, limit = 20, search } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      const where = { role: 'PROVIDER' };
+      if (status) {
+        where.vendorProfile = { status: status.toUpperCase() };
+      }
+      if (search) {
+        where.OR = [
+          { name: { contains: search } },
+          { phone: { contains: search } },
+          { email: { contains: search } },
+          { vendorProfile: { businessName: { contains: search } } },
+        ];
+      }
+
+      const [users, total] = await Promise.all([
+        prisma.user.findMany({
+          where,
+          select: {
+            id: true,
+            name: true,
+            nameAr: true,
+            phone: true,
+            email: true,
+            isActive: true,
+            createdAt: true,
+            vendorProfile: {
+              select: {
+                vendorType: true,
+                status: true,
+                businessName: true,
+                businessNameAr: true,
+                avatar: true,
+                address: true,
+                phoneVerified: true,
+              },
+            },
+            vendorWallet: { select: { balance: true } },
+            _count: { select: { vendorServices: true, vendorOrders: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          skip,
+        }),
+        prisma.user.count({ where }),
+      ]);
+
+      const vendors = users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        nameAr: u.nameAr,
+        phone: u.phone,
+        email: u.email,
+        vendorType: u.vendorProfile?.vendorType,
+        status: u.vendorProfile?.status ?? 'PENDING',
+        businessName: u.vendorProfile?.businessName,
+        businessNameAr: u.vendorProfile?.businessNameAr,
+        avatar: u.vendorProfile?.avatar,
+        address: u.vendorProfile?.address,
+        phoneVerified: u.vendorProfile?.phoneVerified ?? false,
+        isActive: u.isActive,
+        createdAt: u.createdAt,
+        wallet: u.vendorWallet ? { balance: u.vendorWallet.balance } : null,
+        _count: u._count,
+      }));
+
+      res.json({ success: true, vendors, total, page: parseInt(page), limit: parseInt(limit) });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/admin/vendors/:id — User (role PROVIDER) + VendorProfile + wallet, locations, services, orders
+   */
+  static async getVendorById(req, res, next) {
+    try {
+      const { id } = req.params;
+      const user = await prisma.user.findFirst({
+        where: { id, role: 'PROVIDER' },
+        include: {
+          vendorProfile: true,
+          vendorWallet: true,
+          vendorLocations: true,
+          vendorServices: true,
+          _count: { select: { vendorOrders: true, vendorTransactions: true } },
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Vendor not found' });
+      }
+
+      const profile = user.vendorProfile || {};
+      const vendor = {
+        id: user.id,
+        name: user.name,
+        nameAr: user.nameAr,
+        phone: user.phone,
+        email: user.email,
+        vendorType: profile.vendorType,
+        status: profile.status ?? 'PENDING',
+        businessName: profile.businessName,
+        businessNameAr: profile.businessNameAr,
+        description: profile.description,
+        avatar: profile.avatar ?? user.avatar,
+        address: profile.address,
+        country: profile.country,
+        city: profile.city,
+        area: profile.area,
+        latitude: profile.latitude,
+        longitude: profile.longitude,
+        googleMapsLink: profile.googleMapsLink,
+        phoneVerified: profile.phoneVerified ?? false,
+        lastLogin: user.lastLogin,
+        createdAt: user.createdAt,
+        wallet: user.vendorWallet,
+        locations: user.vendorLocations,
+        services: user.vendorServices,
+        _count: { services: user.vendorServices?.length ?? 0, orders: user._count?.vendorOrders ?? 0, transactions: user._count?.vendorTransactions ?? 0 },
+      };
+
+      res.json({ success: true, vendor });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /api/admin/vendors/:id
+   * Update user + vendor profile
+   */
+  static async updateVendor(req, res, next) {
+    try {
+      const { id } = req.params;
+      const {
+        name,
+        businessName,
+        businessNameAr,
+        description,
+        address,
+        country,
+        city,
+        area,
+        latitude,
+        longitude,
+        googleMapsLink,
+        isActive,
+      } = req.body;
+
+      const user = await prisma.user.findFirst({
+        where: { id, role: 'PROVIDER' },
+        include: { vendorProfile: true, vendorLocations: true, vendorWallet: true },
+      });
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Vendor not found' });
+      }
+
+      if (name !== undefined) {
+        await prisma.user.update({ where: { id }, data: { name: name.trim() } });
+      }
+
+      const profileUpdate = {};
+      if (businessName !== undefined) profileUpdate.businessName = businessName?.trim() || null;
+      if (businessNameAr !== undefined) profileUpdate.businessNameAr = businessNameAr?.trim() || null;
+      if (description !== undefined) profileUpdate.description = description;
+      if (address !== undefined) profileUpdate.address = address;
+      if (country !== undefined) profileUpdate.country = country?.trim() || null;
+      if (city !== undefined) profileUpdate.city = city?.trim() || null;
+      if (area !== undefined) profileUpdate.area = area?.trim() || null;
+      if (latitude !== undefined) profileUpdate.latitude = latitude === '' || latitude === null ? null : parseFloat(latitude);
+      if (longitude !== undefined) profileUpdate.longitude = longitude === '' || longitude === null ? null : parseFloat(longitude);
+      if (googleMapsLink !== undefined) profileUpdate.googleMapsLink = googleMapsLink?.trim() || null;
+      if (isActive !== undefined) profileUpdate.isActive = !!isActive;
+
+      if (user.vendorProfile && Object.keys(profileUpdate).length > 0) {
+        await prisma.vendorProfile.update({
+          where: { userId: id },
+          data: profileUpdate,
+        });
+      }
+
+      if (isActive !== undefined) {
+        await prisma.user.update({ where: { id }, data: { isActive: !!isActive } });
+      }
+
+      const updated = await prisma.user.findFirst({
+        where: { id, role: 'PROVIDER' },
+        include: { vendorProfile: true, vendorLocations: true, vendorWallet: true },
+      });
+      const profile = updated.vendorProfile || {};
+      const vendor = {
+        ...updated,
+        vendorType: profile.vendorType,
+        status: profile.status,
+        businessName: profile.businessName,
+        businessNameAr: profile.businessNameAr,
+        description: profile.description,
+        address: profile.address,
+        country: profile.country,
+        city: profile.city,
+        area: profile.area,
+        latitude: profile.latitude,
+        longitude: profile.longitude,
+        googleMapsLink: profile.googleMapsLink,
+        locations: updated.vendorLocations,
+        wallet: updated.vendorWallet,
+      };
+
+      res.json({ success: true, vendor });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/admin/vendors-map
+   * Query: vendorType (category), city, activeOnly - for map view with markers
+   * Works even when vendor_locations table or new columns (city, area) are not migrated yet.
+   */
+  static async getVendorsForMap(req, res, next) {
+    try {
+      const where = { role: 'PROVIDER' };
+      if (vendorType) where.vendorProfile = { vendorType };
+      if (activeOnly === 'true' || activeOnly === '1') where.isActive = true;
+      if (city) where.vendorProfile = { ...where.vendorProfile, city: { contains: city } };
+
+      let users;
+      try {
+        users = await prisma.user.findMany({
+          where,
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            isActive: true,
+            vendorProfile: {
+              select: {
+                vendorType: true,
+                businessName: true,
+                address: true,
+                city: true,
+                area: true,
+                latitude: true,
+                longitude: true,
+              },
+            },
+            vendorServices: { select: { id: true, name: true, nameAr: true } },
+            vendorLocations: {
+              select: { id: true, locationName: true, address: true, city: true, latitude: true, longitude: true },
+            },
+          },
+        });
+      } catch (selectErr) {
+        return res.status(500).json({ success: false, error: 'Database schema may be outdated. Run: npx prisma migrate dev' });
+      }
+
+      const points = [];
+      for (const u of users) {
+        const p = u.vendorProfile;
+        if (p?.latitude != null && p?.longitude != null) {
+          points.push({
+            vendorId: u.id,
+            type: 'main',
+            name: u.name,
+            businessName: p.businessName,
+            phone: u.phone,
+            address: p.address,
+            city: p.city || null,
+            area: p.area || null,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            services: u.vendorServices,
+            isActive: u.isActive,
+          });
+        }
+      }
+
+      for (const u of users) {
+        const main = points.find((x) => x.vendorId === u.id) || { name: u.name, businessName: u.vendorProfile?.businessName, phone: u.phone, vendorServices: u.vendorServices, isActive: u.isActive };
+        for (const loc of u.vendorLocations || []) {
+          if (loc.latitude != null && loc.longitude != null) {
+            points.push({
+              vendorId: u.id,
+              locationId: loc.id,
+              type: 'branch',
+              locationName: loc.locationName,
+              name: main.name,
+              businessName: main.businessName,
+              phone: main.phone,
+              address: loc.address,
+              city: loc.city,
+              area: loc.area,
+              latitude: loc.latitude,
+              longitude: loc.longitude,
+              services: main.vendorServices || u.vendorServices,
+              isActive: main.isActive ?? u.isActive,
+            });
+          }
+        }
+      }
+
+      res.json({ success: true, vendors: points });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /api/admin/vendors/:id/approve
+   * Approves the vendor and creates a wallet if not already existing
+   */
+  static async approveVendor(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const user = await prisma.user.findFirst({ where: { id, role: 'PROVIDER' }, include: { vendorProfile: true } });
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Vendor not found' });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        if (user.vendorProfile) {
+          await tx.vendorProfile.update({ where: { userId: id }, data: { status: 'APPROVED' } });
+        }
+        const existingWallet = await tx.vendorWallet.findUnique({ where: { userId: id } });
+        if (!existingWallet) {
+          await tx.vendorWallet.create({ data: { userId: id, balance: 0 } });
+        }
+      });
+
+      res.json({ success: true, message: 'Vendor approved successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /api/admin/vendors/:id/reject
+   * Body: { reason? }
+   */
+  static async rejectVendor(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+
+      const user = await prisma.user.findFirst({ where: { id, role: 'PROVIDER' }, include: { vendorProfile: true } });
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Vendor not found' });
+      }
+
+      if (user.vendorProfile) {
+        await prisma.vendorProfile.update({ where: { userId: id }, data: { status: 'REJECTED' } });
+      }
+
+      res.json({ success: true, message: 'Vendor rejected', reason: reason || null });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /api/admin/vendors/:id/suspend
+   */
+  static async suspendVendor(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const user = await prisma.user.findFirst({ where: { id, role: 'PROVIDER' }, include: { vendorProfile: true } });
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Vendor not found' });
+      }
+
+      if (user.vendorProfile) {
+        await prisma.vendorProfile.update({ where: { userId: id }, data: { status: 'SUSPENDED' } });
+      }
+
+      res.json({ success: true, message: 'Vendor suspended' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/admin/vendors/:id/send-money
+   * Body: { amount, description?, transactionNote?, paymentMethod? } — paymentMethod: Bank | Cash | Transfer
+   */
+  static async sendMoneyToVendor(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { amount, description, transactionNote, paymentMethod } = req.body;
+
+      if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        return res.status(400).json({ success: false, error: 'Valid amount is required' });
+      }
+
+      const user = await prisma.user.findFirst({
+        where: { id, role: 'PROVIDER' },
+        include: { vendorWallet: true, vendorProfile: true },
+      });
+
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Vendor not found' });
+      }
+
+      if (user.vendorProfile?.status !== 'APPROVED') {
+        return res.status(400).json({ success: false, error: 'Vendor must be approved to receive money' });
+      }
+
+      const parsedAmount = parseFloat(amount);
+      const note = transactionNote || description || 'Admin transfer';
+      const method = paymentMethod && ['Bank', 'Cash', 'Transfer'].includes(paymentMethod) ? paymentMethod : null;
+
+      let wallet;
+      if (!user.vendorWallet) {
+        wallet = await prisma.vendorWallet.create({ data: { userId: id, balance: parsedAmount } });
+      } else {
+        if (user.vendorWallet.isFrozen) {
+          return res.status(400).json({ success: false, error: 'Wallet is frozen' });
+        }
+        wallet = await prisma.vendorWallet.update({
+          where: { userId: id },
+          data: { balance: { increment: parsedAmount } },
+        });
+      }
+
+      await prisma.vendorTransaction.create({
+        data: {
+          userId: id,
+          type: 'CREDIT',
+          category: 'MANUAL_DEPOSIT',
+          amount: parsedAmount,
+          netAmount: parsedAmount,
+          status: 'COMPLETED',
+          paymentMethod: method,
+          description: note,
+          reference: `ADMIN-${Date.now()}`,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: `${parsedAmount} sent to vendor wallet`,
+        newBalance: wallet.balance,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/admin/vendors/:id/transactions
+   * Query: page, limit, category, status, dateFrom, dateTo (ISO dates)
+   */
+  static async getVendorTransactions(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { page = 1, limit = 20, category, status, dateFrom, dateTo } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      const where = { userId: id };
+      if (category) where.category = category.toUpperCase();
+      if (status) where.status = status.toUpperCase();
+      if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+        if (dateTo) where.createdAt.lte = new Date(dateTo);
+      }
+
+      const [transactions, total] = await Promise.all([
+        prisma.vendorTransaction.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          skip,
+        }),
+        prisma.vendorTransaction.count({ where }),
+      ]);
+
+      res.json({ success: true, transactions, total });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/admin/vendor-orders — recent/pending orders from all vendors (for admin dashboard)
+   */
+  static async getRecentVendorOrders(req, res, next) {
+    try {
+      const { status, page = 1, limit = 20 } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const where = {};
+      if (status && status.trim()) where.status = status.trim().toUpperCase();
+
+      const [orders, total] = await Promise.all([
+        prisma.vendorOrder.findMany({
+          where,
+          include: {
+            items: { include: { service: true } },
+            vendorLocation: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                vendorProfile: { select: { businessName: true, businessNameAr: true, city: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          skip,
+        }),
+        prisma.vendorOrder.count({ where }),
+      ]);
+
+      const rows = orders.map((o) => ({
+        ...o,
+        vendorName: o.user?.vendorProfile?.businessName || o.user?.name,
+        vendorNameAr: o.user?.vendorProfile?.businessNameAr || o.user?.name,
+      }));
+
+      res.json({ success: true, orders: rows, total });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/admin/vendors/:id/orders
+   */
+  static async getVendorOrders(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { status, page = 1, limit = 20 } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      const where = { userId: id };
+      if (status) where.status = status.toUpperCase();
+
+      const [orders, total] = await Promise.all([
+        prisma.vendorOrder.findMany({
+          where,
+          include: {
+            items: { include: { service: true } },
+            vendorLocation: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          skip,
+        }),
+        prisma.vendorOrder.count({ where }),
+      ]);
+
+      res.json({ success: true, orders, total });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/admin/vendors/:vendorId/orders/:orderId
+   */
+  static async getVendorOrderById(req, res, next) {
+    try {
+      const { vendorId, orderId } = req.params;
+      const order = await prisma.vendorOrder.findFirst({
+        where: { id: orderId, userId: vendorId },
+        include: {
+          items: { include: { service: true } },
+          vendorLocation: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              vendorProfile: { select: { address: true, city: true, latitude: true, longitude: true } },
+            },
+          },
+        },
+      });
+      if (order?.user) {
+        order.vendor = {
+          id: order.user.id,
+          name: order.user.name,
+          phone: order.user.phone,
+          address: order.user.vendorProfile?.address,
+          city: order.user.vendorProfile?.city,
+          latitude: order.user.vendorProfile?.latitude,
+          longitude: order.user.vendorProfile?.longitude,
+        };
+      }
+      if (!order) {
+        return res.status(404).json({ success: false, error: 'Order not found' });
+      }
+      res.json({ success: true, order });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ─── Vendor Wallets ─────────────────────────────────────────────────────
+
+  /**
+   * GET /api/admin/wallets — list all vendor wallets with stats
+   */
+  static async getVendorWallets(req, res, next) {
+    try {
+      const { page = 1, limit = 20, search } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      const where = { user: { role: 'PROVIDER' } };
+      if (search && search.trim()) {
+        where.user.OR = [
+          { name: { contains: search.trim(), mode: 'insensitive' } },
+          { phone: { contains: search.trim() } },
+        ];
+      }
+
+      const [wallets, total, stats] = await Promise.all([
+        prisma.vendorWallet.findMany({
+          where,
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+                vendorServices: { select: { id: true, name: true, nameAr: true } },
+              },
+            },
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: parseInt(limit),
+          skip,
+        }),
+        prisma.vendorWallet.count({ where }),
+        (async () => {
+          const walletsAll = await prisma.vendorWallet.findMany({ select: { balance: true, totalWithdrawn: true, totalEarnings: true, totalCommissionPaid: true } });
+          const totalBalance = walletsAll.reduce((s, w) => s + (w.balance || 0), 0);
+          const totalWithdrawals = walletsAll.reduce((s, w) => s + (w.totalWithdrawn || 0), 0);
+          const totalCommission = walletsAll.reduce((s, w) => s + (w.totalCommissionPaid || 0), 0);
+          const pendingWithdrawals = 0; // could be sum of PENDING withdrawal transactions if you add that later
+          const txCount = await prisma.vendorTransaction.count();
+          return {
+            totalVendorsBalance: totalBalance,
+            totalSystemCommission: totalCommission,
+            totalWithdrawals,
+            pendingWithdrawals,
+            totalTransactions: txCount,
+          };
+        })(),
+      ]);
+
+      // Last transaction date per wallet
+      const lastTx = await prisma.vendorTransaction.groupBy({
+        by: ['userId'],
+        where: { userId: { in: wallets.map((w) => w.userId) } },
+        _max: { createdAt: true },
+      });
+      const lastTxMap = Object.fromEntries(lastTx.map((t) => [t.userId, t._max.createdAt]));
+
+      const rows = wallets.map((w) => ({
+        ...w,
+        vendor: w.user,
+        lastTransactionDate: lastTxMap[w.userId] || null,
+      }));
+
+      res.json({
+        success: true,
+        wallets: rows,
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        stats,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/admin/wallets/:walletId — wallet detail + vendor info
+   */
+  static async getVendorWalletById(req, res, next) {
+    try {
+      const { walletId } = req.params;
+
+      const wallet = await prisma.vendorWallet.findUnique({
+        where: { id: walletId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              nameAr: true,
+              phone: true,
+              email: true,
+              vendorProfile: { select: { address: true, status: true } },
+              vendorServices: { select: { id: true, name: true, nameAr: true, price: true } },
+            },
+          },
+        },
+      });
+      if (wallet?.user) {
+        wallet.vendor = {
+          id: wallet.user.id,
+          name: wallet.user.name,
+          nameAr: wallet.user.nameAr,
+          phone: wallet.user.phone,
+          email: wallet.user.email,
+          address: wallet.user.vendorProfile?.address,
+          status: wallet.user.vendorProfile?.status,
+          services: wallet.user.vendorServices,
+        };
+      }
+
+      if (!wallet) {
+        return res.status(404).json({ success: false, error: 'Wallet not found' });
+      }
+
+      res.json({ success: true, wallet });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/admin/wallets/adjust
+   * Body: { vendorId, amount, reason, type: 'ADD' | 'DEDUCT' }
+   */
+  static async adjustWalletBalance(req, res, next) {
+    try {
+      const { vendorId, amount, reason, type } = req.body;
+
+      if (!vendorId || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        return res.status(400).json({ success: false, error: 'Vendor and valid amount are required' });
+      }
+      if (!type || !['ADD', 'DEDUCT'].includes(type.toUpperCase())) {
+        return res.status(400).json({ success: false, error: 'Type must be ADD or DEDUCT' });
+      }
+
+      const wallet = await prisma.vendorWallet.findUnique({ where: { userId: vendorId } });
+      if (!wallet) {
+        return res.status(404).json({ success: false, error: 'Wallet not found' });
+      }
+      if (wallet.isFrozen) {
+        return res.status(400).json({ success: false, error: 'Wallet is frozen' });
+      }
+
+      const parsedAmount = parseFloat(amount);
+      const isAdd = type.toUpperCase() === 'ADD';
+      const delta = isAdd ? parsedAmount : -parsedAmount;
+
+      await prisma.$transaction([
+        prisma.vendorWallet.update({
+          where: { userId: vendorId },
+          data: { balance: { increment: delta } },
+        }),
+        prisma.vendorTransaction.create({
+          data: {
+            userId: vendorId,
+            type: isAdd ? 'CREDIT' : 'DEBIT',
+            category: 'ADJUSTMENT',
+            amount: parsedAmount,
+            netAmount: parsedAmount,
+            status: 'COMPLETED',
+            description: reason || (isAdd ? 'Admin balance add' : 'Admin balance deduction'),
+            reference: `ADJUST-${Date.now()}`,
+          },
+        }),
+      ]);
+
+      const updated = await prisma.vendorWallet.findUnique({ where: { userId: vendorId } });
+      res.json({ success: true, message: 'Balance updated', newBalance: updated.balance });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /api/admin/wallets/:walletId/freeze
+   */
+  static async freezeWallet(req, res, next) {
+    try {
+      const { walletId } = req.params;
+      const wallet = await prisma.vendorWallet.findUnique({ where: { id: walletId } });
+      if (!wallet) {
+        return res.status(404).json({ success: false, error: 'Wallet not found' });
+      }
+      await prisma.vendorWallet.update({
+        where: { id: walletId },
+        data: { isFrozen: true },
+      });
+      res.json({ success: true, message: 'Wallet frozen' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /api/admin/wallets/:walletId/activate
+   */
+  static async activateWallet(req, res, next) {
+    try {
+      const { walletId } = req.params;
+      const wallet = await prisma.vendorWallet.findUnique({ where: { id: walletId } });
+      if (!wallet) {
+        return res.status(404).json({ success: false, error: 'Wallet not found' });
+      }
+      await prisma.vendorWallet.update({
+        where: { id: walletId },
+        data: { isFrozen: false },
+      });
+      res.json({ success: true, message: 'Wallet activated' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/admin/transactions — all wallet transactions with filters
+   * Query: vendorId, category, status, dateFrom, dateTo, page, limit
+   */
+  static async getAllTransactions(req, res, next) {
+    try {
+      const { vendorId, category, status, dateFrom, dateTo, page = 1, limit = 20 } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      const where = {};
+      if (vendorId) where.userId = vendorId;
+      if (category) where.category = category.toUpperCase();
+      if (status) where.status = status.toUpperCase();
+      if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+        if (dateTo) where.createdAt.lte = new Date(dateTo);
+      }
+
+      const [rawTransactions, total] = await Promise.all([
+        prisma.vendorTransaction.findMany({
+          where,
+          include: {
+            user: { select: { id: true, name: true, phone: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          skip,
+        }),
+        prisma.vendorTransaction.count({ where }),
+      ]);
+
+      const transactions = rawTransactions.map((t) => ({ ...t, vendor: t.user }));
+
+      res.json({ success: true, transactions, total, page: parseInt(page), limit: parseInt(limit) });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/admin/commission/reports
+   * Query: page, limit — table; stats are today, this month, all time
+   */
+  static async getCommissionReports(req, res, next) {
+    try {
+      const { page = 1, limit = 20 } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const [todaySum, monthSum, allTimeSum, records, total] = await Promise.all([
+        prisma.systemCommissionRecord.aggregate({
+          where: { createdAt: { gte: startOfToday } },
+          _sum: { commissionAmount: true },
+        }),
+        prisma.systemCommissionRecord.aggregate({
+          where: { createdAt: { gte: startOfMonth } },
+          _sum: { commissionAmount: true },
+        }),
+        prisma.systemCommissionRecord.aggregate({
+          _sum: { commissionAmount: true },
+        }),
+        prisma.systemCommissionRecord.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          skip,
+        }),
+        prisma.systemCommissionRecord.count(),
+      ]);
+
+      const userIds = [...new Set(records.map((r) => r.userId))];
+      const users = await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, name: true, phone: true },
+      });
+      const vendorMap = Object.fromEntries(users.map((v) => [v.id, v]));
+
+      const table = records.map((r) => ({
+        id: r.id,
+        orderId: r.orderId,
+        vendor: vendorMap[r.userId] || { id: r.userId, name: '-', phone: '-' },
+        orderAmount: r.orderAmount,
+        commission: r.commissionAmount,
+        vendorEarnings: r.vendorEarnings,
+        date: r.createdAt,
+      }));
+
+      res.json({
+        success: true,
+        stats: {
+          totalCommissionToday: todaySum._sum.commissionAmount || 0,
+          totalCommissionThisMonth: monthSum._sum.commissionAmount || 0,
+          totalCommissionAllTime: allTimeSum._sum.commissionAmount || 0,
+        },
+        table,
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
       });
     } catch (error) {
       next(error);

@@ -37,6 +37,14 @@ model User {
   userCoupons UserCoupon[] @relation("UserCoupons")
   favoriteVenues UserFavoriteVenue[]
   creditCards CreditCard[]
+  // Vendor = Provider (role = PROVIDER)
+  vendorProfile   VendorProfile?
+  vendorWallet    VendorWallet?
+  vendorLocations VendorLocation[]
+  vendorServices  VendorService[]
+  vendorOrders    VendorOrder[]
+  vendorTransactions VendorTransaction[]
+  vendorOtps      VendorOTP[]
 
   @@map("users")
 }
@@ -266,7 +274,7 @@ model Review {
 
 enum Role {
   CUSTOMER
-  PROVIDER
+  PROVIDER  // مزود الخدمة = المورد (Vendor)
   ADMIN
 }
 
@@ -525,6 +533,15 @@ model AppSettings {
   appStoreUrl       String?
   shareMessage      String?  @db.Text
   shareMessageAr    String?  @db.Text
+  // Currency (global)
+  currencyName      String?  @default("Kuwaiti Dinar")
+  currencySymbol    String?  @default("KWD")
+  currencyCode      String?  @default("KWD")
+  currencyDecimals  Int?     @default(3)
+  currencyPosition  String?  @default("AFTER") // BEFORE | AFTER
+  // System commission (vendor orders)
+  commissionType    String?  @default("PERCENTAGE") // PERCENTAGE | FIXED
+  commissionValue   Float?   @default(10)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -658,4 +675,224 @@ model CreditCard {
   payments      Payment[]
 
   @@map("credit_cards")
+}
+
+// =====================================================
+// VENDOR SYSTEM (Vendor = User with role PROVIDER — مزود الخدمة = المورد)
+// =====================================================
+
+model VendorProfile {
+  id             String       @id @default(uuid())
+  userId         String       @unique
+  vendorType     VendorType
+  status         VendorStatus @default(PENDING)
+  businessName   String?
+  businessNameAr String?
+  description    String?      @db.Text
+  avatar         String?      @db.LongText
+  address        String?
+  country        String?
+  city           String?
+  area           String?
+  latitude       Float?
+  longitude      Float?
+  googleMapsLink String?      @db.Text
+  phoneVerified  Boolean      @default(false)
+  isActive       Boolean      @default(true)
+  rating         Float?       @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_profiles")
+}
+
+model VendorLocation {
+  id             String        @id @default(uuid())
+  userId         String
+  locationName   String        // Branch name
+  address        String?       @db.Text
+  city           String?
+  area           String?
+  latitude       Float?
+  longitude      Float?
+  isMainLocation Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders         VendorOrder[]
+
+  @@map("vendor_locations")
+}
+
+enum VendorType {
+  RESTAURANT
+  FASHION_STORE
+  SWEETS_SHOP
+  HEADPHONES_RENTAL
+}
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model VendorOTP {
+  id        String   @id @default(uuid())
+  userId    String?
+  phone     String
+  code      String
+  type      String   @default("VERIFY") // VERIFY | RESET_PASSWORD
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_otps")
+}
+
+model VendorService {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  nameAr      String?
+  description String?  @db.Text
+  price       Float
+  images      Json     // Array of image URLs
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItems  VendorOrderItem[]
+
+  @@map("vendor_services")
+}
+
+model VendorOrder {
+  id                 String              @id @default(uuid())
+  orderNumber        String              @unique
+  userId             String              // Vendor (user with role PROVIDER)
+  vendorLocationId  String?             // Branch used for this order
+  customerName       String
+  customerPhone      String
+  status             VendorOrderStatus   @default(PENDING)
+  totalAmount        Float
+  paymentStatus      VendorPaymentStatus @default(PENDING)
+  notes              String?             @db.Text
+  address            String?             @db.Text
+  customerLatitude   Float?
+  customerLongitude  Float?
+  vendorLatitude     Float?              // Snapshot at order time
+  vendorLongitude    Float?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  user               User                @relation(fields: [userId], references: [id])
+  vendorLocation     VendorLocation?     @relation(fields: [vendorLocationId], references: [id], onDelete: SetNull)
+  items              VendorOrderItem[]
+
+  @@map("vendor_orders")
+}
+
+model VendorOrderItem {
+  id        String        @id @default(uuid())
+  orderId   String
+  serviceId String
+  quantity  Int           @default(1)
+  price     Float
+
+  order     VendorOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  service   VendorService @relation(fields: [serviceId], references: [id])
+
+  @@map("vendor_order_items")
+}
+
+enum VendorOrderStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  IN_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum VendorPaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+}
+
+model VendorWallet {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  balance              Float    @default(0)
+  totalEarnings        Float    @default(0)
+  totalWithdrawn       Float    @default(0)
+  totalCommissionPaid  Float    @default(0)
+  pendingBalance       Float    @default(0)
+  isFrozen             Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_wallets")
+}
+
+model VendorTransaction {
+  id                String            @id @default(uuid())
+  userId            String
+  type              VendorTxType
+  category          VendorTxCategory  @default(MANUAL_DEPOSIT)
+  amount            Float
+  commission        Float?
+  netAmount         Float?
+  status            VendorTxStatus    @default(COMPLETED)
+  paymentMethod     String?
+  description       String?           @db.Text
+  reference         String?
+  referenceOrderId  String?
+  createdAt         DateTime          @default(now())
+
+  user              User              @relation(fields: [userId], references: [id])
+
+  @@map("vendor_transactions")
+}
+
+enum VendorTxType {
+  CREDIT
+  DEBIT
+}
+
+enum VendorTxCategory {
+  ORDER_INCOME
+  BOOKING_INCOME
+  WITHDRAWAL
+  MANUAL_DEPOSIT
+  COMMISSION_DEDUCTION
+  ADJUSTMENT
+}
+
+enum VendorTxStatus {
+  COMPLETED
+  PENDING
+  FAILED
+}
+
+model SystemCommissionRecord {
+  id              String   @id @default(uuid())
+  userId          String   // Vendor (user with role PROVIDER)
+  orderId         String
+  orderAmount     Float
+  commissionAmount Float
+  vendorEarnings  Float
+  createdAt       DateTime @default(now())
+
+  @@map("system_commission_records")
 }

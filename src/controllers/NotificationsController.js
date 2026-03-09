@@ -9,7 +9,7 @@ class NotificationsController {
    */
   static async getAll(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { isRead, category, limit = 50, offset = 0 } = req.query;
 
       const where = {
@@ -49,7 +49,7 @@ class NotificationsController {
    */
   static async getById(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { id } = req.params;
 
       const notification = await prisma.notification.findFirst({
@@ -77,7 +77,7 @@ class NotificationsController {
    */
   static async markAsRead(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { id } = req.params;
 
       const notification = await prisma.notification.findFirst({
@@ -113,7 +113,7 @@ class NotificationsController {
    */
   static async markAllAsRead(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
 
       await prisma.notification.updateMany({
         where: {
@@ -140,7 +140,7 @@ class NotificationsController {
    */
   static async delete(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { id } = req.params;
 
       const notification = await prisma.notification.findFirst({
@@ -172,7 +172,7 @@ class NotificationsController {
    */
   static async deleteAll(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const { isRead } = req.query;
 
       const where = {
@@ -198,7 +198,7 @@ class NotificationsController {
    */
   static async getUnreadCount(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const userId = req.user.id;
 
       const count = await prisma.notification.count({
         where: {

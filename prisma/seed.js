@@ -27,6 +27,18 @@ async function main() {
     if (prisma.about && prisma.about.deleteMany) await prisma.about.deleteMany();
     if (prisma.privacy && prisma.privacy.deleteMany) await prisma.privacy.deleteMany();
     if (prisma.terms && prisma.terms.deleteMany) await prisma.terms.deleteMany();
+    // Vendor system (order matters: children first)
+    try {
+      await prisma.vendorOrderItem.deleteMany();
+      await prisma.vendorOrder.deleteMany();
+      await prisma.vendorTransaction.deleteMany();
+      await prisma.vendorWallet.deleteMany();
+      await prisma.vendorLocation.deleteMany();
+      await prisma.vendorService.deleteMany();
+      await prisma.vendorProfile.deleteMany();
+      await prisma.vendorOTP.deleteMany();
+      if (prisma.systemCommissionRecord && prisma.systemCommissionRecord.deleteMany) await prisma.systemCommissionRecord.deleteMany();
+    } catch (e) { console.warn('Vendor clear:', e.message); }
     await prisma.user.deleteMany();
   } catch (error) {
     console.warn('⚠️ Some models may not exist, continuing...', error.message);
@@ -60,8 +72,9 @@ async function main() {
   });
   console.log('✅ Admin created:', admin.email, '| Password: admin123');
 
-  // Create Provider Users
+  // Create Provider Users (with password for vendor login)
   console.log('🏢 Creating provider users...');
+  const providerPassword = await bcrypt.hash('provider123', 10);
   const providers = [];
   const providerData = [
     { name: 'Ahmed Al-Sabah', nameAr: 'أحمد الصباح', phone: '+96550000001', email: 'provider1@farah.com', location: 'Salmiya', locationAr: 'السالمية' },
@@ -75,13 +88,214 @@ async function main() {
     const provider = await prisma.user.create({
       data: {
         ...providerInfo,
+        password: providerPassword,
         role: 'PROVIDER',
         isActive: true,
       },
     });
     providers.push(provider);
   }
-  console.log(`✅ Created ${providers.length} providers`);
+  console.log(`✅ Created ${providers.length} providers (password: provider123)`);
+
+  // --- Vendor system: profiles, wallets, locations, services, orders, transactions ---
+  const vendorTypes = ['RESTAURANT', 'FASHION_STORE', 'SWEETS_SHOP', 'HEADPHONES_RENTAL', 'RESTAURANT'];
+  const businessNames = ['Al-Sabah Kitchen', 'Fatima Boutique', 'Rashid Sweets', 'Sara Headphones', 'Golden Fork'];
+  const businessNamesAr = ['مطبخ الصباح', 'بوتيك فاطمة', 'حلويات الراشد', 'سماعات سارة', 'الشوكة الذهبية'];
+
+  for (let p = 0; p < providers.length; p++) {
+    const user = providers[p];
+    console.log(`   Vendor data for ${user.name}...`);
+
+    await prisma.vendorProfile.create({
+      data: {
+        userId: user.id,
+        vendorType: vendorTypes[p],
+        status: 'APPROVED',
+        businessName: businessNames[p],
+        businessNameAr: businessNamesAr[p],
+        description: `Provider business ${businessNames[p]}`,
+        address: `${user.location}, Kuwait`,
+        country: 'Kuwait',
+        city: user.location,
+        area: user.location,
+        latitude: 29.3 + Math.random() * 0.2,
+        longitude: 47.9 + Math.random() * 0.3,
+        phoneVerified: true,
+        isActive: true,
+        rating: 4 + Math.random(),
+      },
+    });
+
+    const wallet = await prisma.vendorWallet.create({
+      data: {
+        userId: user.id,
+        balance: 0,
+        totalEarnings: 0,
+        totalWithdrawn: 0,
+        totalCommissionPaid: 0,
+        pendingBalance: 0,
+        isFrozen: false,
+      },
+    });
+
+    const loc1 = await prisma.vendorLocation.create({
+      data: {
+        userId: user.id,
+        locationName: `${businessNames[p]} - Main`,
+        address: `${user.location}, Block 1, Street 2, Kuwait`,
+        city: user.location,
+        area: user.location,
+        latitude: 29.3 + Math.random() * 0.2,
+        longitude: 47.9 + Math.random() * 0.3,
+        isMainLocation: true,
+      },
+    });
+    const loc2 = await prisma.vendorLocation.create({
+      data: {
+        userId: user.id,
+        locationName: `${businessNames[p]} - Branch`,
+        address: `${user.location}, Block 5, Kuwait`,
+        city: user.location,
+        area: user.location,
+        latitude: 29.32 + Math.random() * 0.15,
+        longitude: 47.92 + Math.random() * 0.2,
+        isMainLocation: false,
+      },
+    });
+    const locations = [loc1, loc2];
+
+    const serviceNames = [
+      ['Main Dish', 'Dessert', 'Drinks', 'Catering Pack'],
+      ['Dress Rental', 'Suit Rental', 'Accessories'],
+      ['Kunafa', 'Baklava', 'Mixed Sweets'],
+      ['Headphones Set', 'Microphone', 'Speaker Pack'],
+      ['Breakfast Pack', 'Lunch Pack', 'Dinner Pack'],
+    ];
+    const vendorServices = [];
+    for (let s = 0; s < serviceNames[p].length; s++) {
+      const svc = await prisma.vendorService.create({
+        data: {
+          userId: user.id,
+          name: serviceNames[p][s],
+          nameAr: serviceNames[p][s],
+          description: `Service: ${serviceNames[p][s]}`,
+          price: 5 + Math.floor(Math.random() * 50),
+          images: [],
+          isAvailable: true,
+        },
+      });
+      vendorServices.push(svc);
+    }
+
+    const orderStatuses = ['PENDING', 'ACCEPTED', 'IN_DELIVERY', 'DELIVERED', 'CANCELLED'];
+    const payStatuses = ['PENDING', 'PAID', 'PAID', 'PAID'];
+    let totalEarnings = 0;
+    let totalCommission = 0;
+
+    for (let o = 0; o < 4; o++) {
+      const loc = locations[o % 2];
+      const status = orderStatuses[o % orderStatuses.length];
+      const paymentStatus = payStatuses[o % payStatuses.length];
+      const item1 = vendorServices[0];
+      const item2 = vendorServices.length > 1 ? vendorServices[1] : vendorServices[0];
+      const qty1 = 1 + (o % 3);
+      const qty2 = o % 2;
+      const totalAmount = item1.price * qty1 + (qty2 ? item2.price * qty2 : 0);
+      const commissionRate = 0.1;
+      const commission = totalAmount * commissionRate;
+      const netAmount = totalAmount - commission;
+
+      const order = await prisma.vendorOrder.create({
+        data: {
+          orderNumber: `VO-${user.id.slice(0, 8)}-${String(o + 1).padStart(3, '0')}`,
+          userId: user.id,
+          vendorLocationId: loc.id,
+          customerName: `Customer ${o + 1}`,
+          customerPhone: `+9655${String(1000000 + o).slice(-7)}`,
+          status,
+          totalAmount,
+          paymentStatus,
+          notes: `Order note ${o + 1}`,
+          address: `Address for order ${o + 1}, Kuwait`,
+          vendorLatitude: loc.latitude,
+          vendorLongitude: loc.longitude,
+          items: {
+            create: [
+              { serviceId: item1.id, quantity: qty1, price: item1.price },
+              ...(qty2 ? [{ serviceId: item2.id, quantity: qty2, price: item2.price }] : []),
+            ],
+          },
+        },
+      });
+
+      if (paymentStatus === 'PAID' && (status === 'DELIVERED' || status === 'ACCEPTED' || status === 'IN_DELIVERY')) {
+        totalEarnings += netAmount;
+        totalCommission += commission;
+        await prisma.vendorTransaction.create({
+          data: {
+            userId: user.id,
+            type: 'CREDIT',
+            category: 'ORDER_INCOME',
+            amount: totalAmount,
+            commission,
+            netAmount,
+            status: 'COMPLETED',
+            description: `Order ${order.orderNumber}`,
+            reference: order.id,
+            referenceOrderId: order.id,
+          },
+        });
+        await prisma.vendorTransaction.create({
+          data: {
+            userId: user.id,
+            type: 'DEBIT',
+            category: 'COMMISSION_DEDUCTION',
+            amount: commission,
+            status: 'COMPLETED',
+            description: `Commission for ${order.orderNumber}`,
+            referenceOrderId: order.id,
+          },
+        });
+      }
+    }
+
+    await prisma.vendorTransaction.create({
+      data: {
+        userId: user.id,
+        type: 'CREDIT',
+        category: 'MANUAL_DEPOSIT',
+        amount: 100,
+        netAmount: 100,
+        status: 'COMPLETED',
+        description: 'Initial deposit',
+        paymentMethod: 'BANK',
+      },
+    });
+    await prisma.vendorTransaction.create({
+      data: {
+        userId: user.id,
+        type: 'DEBIT',
+        category: 'WITHDRAWAL',
+        amount: 20,
+        netAmount: -20,
+        status: 'COMPLETED',
+        description: 'Withdrawal to bank',
+        paymentMethod: 'BANK',
+      },
+    });
+
+    await prisma.vendorWallet.update({
+      where: { id: wallet.id },
+      data: {
+        balance: 80 + totalEarnings - 20,
+        totalEarnings: totalEarnings + 100,
+        totalWithdrawn: 20,
+        totalCommissionPaid: totalCommission,
+        pendingBalance: 0,
+      },
+    });
+  }
+  console.log('✅ Vendor profiles, wallets, locations, services, orders & transactions created for 5 providers');
 
   // Create Customer Users
   console.log('👥 Creating customer users...');
@@ -542,7 +756,8 @@ async function main() {
   console.log('\n🔑 Login Credentials:');
   console.log('   Admin: admin@farah.com / admin123');
   console.log('   Customer: customer1@farah.com (no password - use OTP)');
-  console.log('   Provider: provider1@farah.com (no password - use OTP)');
+  console.log('   Provider (vendor): provider1@farah.com … provider5@farah.com / provider123');
+  console.log('   Each provider has: VendorProfile, Wallet, 2 Locations, VendorServices, 4 Orders, Transactions');
 }
 
 main()

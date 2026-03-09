@@ -72,4 +72,37 @@ router.delete('/reviews/:id', AdminController.deleteReview);
 router.get('/payments', AdminController.getPayments);
 router.patch('/payments/:id/status', AdminController.updatePaymentStatus);
 
+// ── Vendor Management ──────────────────────────────────────────────────────
+const VendorLocationController = require('../controllers/VendorLocationController');
+
+router.get('/vendor-orders', AdminController.getRecentVendorOrders);
+router.get('/vendors', AdminController.getVendors);
+router.get('/vendors-map', AdminController.getVendorsForMap);
+router.get('/vendors/:id', AdminController.getVendorById);
+router.patch('/vendors/:id', AdminController.updateVendor);
+router.patch('/vendors/:id/approve', AdminController.approveVendor);
+router.patch('/vendors/:id/reject', AdminController.rejectVendor);
+router.patch('/vendors/:id/suspend', AdminController.suspendVendor);
+router.post('/vendors/:id/send-money', AdminController.sendMoneyToVendor);
+router.get('/vendors/:id/transactions', AdminController.getVendorTransactions);
+router.get('/vendors/:id/orders', AdminController.getVendorOrders);
+router.get('/vendors/:vendorId/orders/:orderId', AdminController.getVendorOrderById);
+
+// Vendor Wallets
+router.get('/wallets', AdminController.getVendorWallets);
+router.get('/wallets/:walletId', AdminController.getVendorWalletById);
+router.post('/wallets/adjust', AdminController.adjustWalletBalance);
+router.patch('/wallets/:walletId/freeze', AdminController.freezeWallet);
+router.patch('/wallets/:walletId/activate', AdminController.activateWallet);
+router.get('/transactions', AdminController.getAllTransactions);
+
+// Commission Reports
+router.get('/commission/reports', AdminController.getCommissionReports);
+
+// Vendor locations (branches)
+router.get('/vendors/:vendorId/locations', VendorLocationController.listLocations);
+router.post('/vendors/:vendorId/locations', VendorLocationController.createLocation);
+router.patch('/vendors/:vendorId/locations/:locationId', VendorLocationController.updateLocation);
+router.delete('/vendors/:vendorId/locations/:locationId', VendorLocationController.deleteLocation);
+
 module.exports = router;

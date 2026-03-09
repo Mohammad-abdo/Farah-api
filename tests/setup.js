@@ -1,7 +1,9 @@
 // Test setup file
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-secret-key';
-process.env.DATABASE_URL = 'mysql://root:password@localhost:3306/farah_test';
+// Use test DB. Match your MySQL user (root with no password = root:@localhost).
+// Create DB: CREATE DATABASE farah_test; then: npx prisma migrate deploy
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'mysql://root:@localhost:3306/farah_test';
 
 // Mock external services in test environment
 jest.mock('../src/services/EmailService', () => ({

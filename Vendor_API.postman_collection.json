@@ -1,0 +1,946 @@
+{
+  "info": {
+    "_postman_id": "vendor-api-collection-2026",
+    "name": "Vendor API — api/mobile/vendor",
+    "description": "Complete Vendor (Service Provider) API endpoints for Farah mobile app.\n\nFlow:\n1. Register → verify OTP → wait for admin approval\n2. Login → use Bearer token for protected routes\n3. Admin must approve vendor before protected routes work\n\nLocation: Vendor profile includes country, city, area, address, latitude, longitude, googleMapsLink. Branches: GET/POST/PATCH/DELETE /api/mobile/vendor/locations.\n\nAdmin: /api/admin/vendors/* (list, get, update, approve, reject, suspend, send-money, transactions, orders). Admin locations: /api/admin/vendors/:id/locations. Map: GET /api/admin/vendors-map.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "var code = pm.response.code;",
+          "pm.test('Status code is 2xx or expected client/error', function() { pm.expect(code).to.be.within(200, 499); });",
+          "if (code >= 200 && code < 300) {",
+          "  pm.test('Response has body or is no-content', function() {",
+          "    if (code !== 204) pm.expect(pm.response.json()).to.be.an('object');",
+          "  });",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000", "type": "string" },
+    { "key": "vendorToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "vendorId", "value": "", "type": "string" },
+    { "key": "serviceId", "value": "", "type": "string" },
+    { "key": "orderId", "value": "", "type": "string" },
+    { "key": "locationId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "🔐 Vendor Auth",
+      "item": [
+        {
+          "name": "1. Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const res = pm.response.json();",
+                  "  pm.collectionVariables.set('vendorToken', res.token);",
+                  "  pm.collectionVariables.set('vendorId', res.vendor.id);",
+                  "  console.log('OTP (dev):', res.otp);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"محمد أحمد\",\n  \"phone\": \"0501234567\",\n  \"password\": \"secret123\",\n  \"vendorType\": \"RESTAURANT\",\n  \"businessName\": \"مطعم البيت\",\n  \"businessNameAr\": \"مطعم البيت\",\n  \"address\": \"الرياض - حي النرجس\",\n  \"country\": \"الكويت\",\n  \"city\": \"الكويت\",\n  \"area\": \"النرجس\",\n  \"googleMapsLink\": \"https://maps.google.com/?q=29.3759,47.9774\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "auth", "register"]
+            },
+            "description": "Register a new vendor. vendorType options: RESTAURANT | FASHION_STORE | SWEETS_SHOP | HEADPHONES_RENTAL\n\nReturns JWT token + OTP (in dev mode)"
+          }
+        },
+        {
+          "name": "2. Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"0501234567\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/auth/verify-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "auth", "verify-otp"]
+            },
+            "description": "Verify phone number with the OTP received after registration"
+          }
+        },
+        {
+          "name": "3. Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"0501234567\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/auth/resend-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "auth", "resend-otp"]
+            }
+          }
+        },
+        {
+          "name": "4. Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const res = pm.response.json();",
+                  "  pm.collectionVariables.set('vendorToken', res.token);",
+                  "  pm.collectionVariables.set('vendorId', res.vendor.id);",
+                  "  console.log('Vendor status:', res.vendor.status);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"0501234567\",\n  \"password\": \"secret123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "auth", "login"]
+            },
+            "description": "Login returns: token, vendor info, status.\nStatus can be PENDING | APPROVED | REJECTED | SUSPENDED\n⚠️ Protected routes only work when status = APPROVED"
+          }
+        },
+        {
+          "name": "5. Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"0501234567\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/auth/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "auth", "forgot-password"]
+            }
+          }
+        },
+        {
+          "name": "6. Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"0501234567\",\n  \"otp\": \"654321\",\n  \"newPassword\": \"newpass123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/auth/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "auth", "reset-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "profile"]
+            },
+            "description": "Returns vendor profile including: name, phone, vendorType, status, businessName, address, country, city, area, latitude, longitude, googleMapsLink, wallet, _count (services, orders)."
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "محمد أحمد المعدل", "type": "text" },
+                { "key": "businessName", "value": "مطعم القصر", "type": "text" },
+                { "key": "description", "value": "أفضل مطعم في المدينة", "type": "text" },
+                { "key": "address", "value": "الرياض - حي العليا", "type": "text" },
+                { "key": "country", "value": "الكويت", "type": "text" },
+                { "key": "city", "value": "الكويت", "type": "text" },
+                { "key": "area", "value": "العليا", "type": "text" },
+                { "key": "latitude", "value": "29.3759", "type": "text" },
+                { "key": "longitude", "value": "47.9774", "type": "text" },
+                { "key": "googleMapsLink", "value": "https://maps.google.com/?q=29.3759,47.9774", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "profile"]
+            },
+            "description": "Supports multipart/form-data. Add 'avatar' field with image file to update avatar. Location: address, country, city, area, latitude, longitude, googleMapsLink."
+          }
+        },
+        {
+          "name": "Update Password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{vendorToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"secret123\",\n  \"newPassword\": \"newsecret456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/profile/password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "profile", "password"]
+            }
+          }
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "profile"]
+            },
+            "description": "⚠️ Permanently deletes the vendor account and all associated data"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📍 Locations (Branches)",
+      "item": [
+        {
+          "name": "List Locations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/locations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "locations"]
+            },
+            "description": "List all branches/locations for the authenticated vendor."
+          }
+        },
+        {
+          "name": "Add Location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('locationId', pm.response.json().location.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{vendorToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationName\": \"فرع العليا\",\n  \"address\": \"شارع العليا - بجانب البنك\",\n  \"city\": \"الكويت\",\n  \"area\": \"العليا\",\n  \"latitude\": 29.3759,\n  \"longitude\": 47.9774,\n  \"isMainLocation\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/locations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "locations"]
+            },
+            "description": "Add a new branch. isMainLocation: true to set as main branch (only one main per vendor)."
+          }
+        },
+        {
+          "name": "Update Location",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{vendorToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationName\": \"فرع العليا - محدث\",\n  \"address\": \"شارع العليا الجديد\",\n  \"city\": \"الكويت\",\n  \"area\": \"العليا\",\n  \"latitude\": 29.376,\n  \"longitude\": 47.978,\n  \"isMainLocation\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/locations/{{locationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "locations", "{{locationId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Location",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/locations/{{locationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "locations", "{{locationId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "dashboard"]
+            },
+            "description": "Returns: totalOrders, pendingOrders, completedOrders, totalServices, walletBalance, totalEarnings"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛍️ Services / Products",
+      "item": [
+        {
+          "name": "List Services",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/services?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "services"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "isAvailable", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('serviceId', pm.response.json().service.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "برجر دجاج", "type": "text" },
+                { "key": "nameAr", "value": "برجر دجاج", "type": "text" },
+                { "key": "description", "value": "برجر دجاج مقرمش مع صوص خاص", "type": "text" },
+                { "key": "price", "value": "35", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "services"]
+            },
+            "description": "Add service/product. Supports multiple image uploads via 'images' field.\nRestaurants: menu items | Fashion: clothing items | Sweets: sweets/cakes | Headphones: rental units"
+          }
+        },
+        {
+          "name": "Update Service",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "برجر دجاج مقرمش", "type": "text" },
+                { "key": "price", "value": "40", "type": "text" },
+                { "key": "isAvailable", "value": "true", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "services", "{{serviceId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "services", "{{serviceId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📦 Orders",
+      "item": [
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/orders?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "orders"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "PENDING", "disabled": true }
+              ]
+            },
+            "description": "Filter by status: PENDING | ACCEPTED | REJECTED | IN_DELIVERY | DELIVERED | CANCELLED"
+          }
+        },
+        {
+          "name": "Get Order by ID",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (!pm.collectionVariables.get('orderId')) {",
+                  "  pm.variables.set('orderId', 'REPLACE_WITH_ORDER_ID');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/orders/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "orders", "{{orderId}}"]
+            }
+          }
+        },
+        {
+          "name": "Accept Order",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/orders/{{orderId}}/accept",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "orders", "{{orderId}}", "accept"]
+            },
+            "description": "Accept a PENDING order"
+          }
+        },
+        {
+          "name": "Reject Order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{vendorToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"المنتج غير متوفر حالياً\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/orders/{{orderId}}/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "orders", "{{orderId}}", "reject"]
+            }
+          }
+        },
+        {
+          "name": "Update Order Status → IN_DELIVERY",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{vendorToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_DELIVERY\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/orders/{{orderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "orders", "{{orderId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Update Order Status → DELIVERED (credits wallet)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{vendorToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DELIVERED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/orders/{{orderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "orders", "{{orderId}}", "status"]
+            },
+            "description": "Setting status to DELIVERED automatically credits the order amount to the vendor wallet"
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 Wallet",
+      "item": [
+        {
+          "name": "Get Wallet Balance",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/wallet",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "wallet"]
+            }
+          }
+        },
+        {
+          "name": "Get Wallet Transactions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendorToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/wallet/transactions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "wallet", "transactions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "type", "value": "CREDIT", "disabled": true }
+              ]
+            },
+            "description": "Filter by type: CREDIT | DEBIT"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📄 Content (Public)",
+      "item": [
+        {
+          "name": "About App",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/content/about",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "content", "about"]
+            }
+          }
+        },
+        {
+          "name": "Privacy Policy",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/content/privacy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "content", "privacy"]
+            }
+          }
+        },
+        {
+          "name": "Terms & Conditions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/mobile/vendor/content/terms",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "mobile", "vendor", "content", "terms"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛡️ Admin — Vendor Management",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('adminToken', pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@farah.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/admin/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "admin", "login"]
+            }
+          }
+        },
+        {
+          "name": "List New Vendor Orders (all vendors)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function() { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  pm.test('Has orders array', function() { pm.expect(json).to.have.property('orders'); pm.expect(json.orders).to.be.an('array'); });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendor-orders?status=PENDING&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendor-orders"],
+              "query": [
+                { "key": "status", "value": "PENDING" },
+                { "key": "limit", "value": "20" },
+                { "key": "page", "value": "1", "disabled": true }
+              ]
+            },
+            "description": "Recent/pending orders from all vendors. Use on admin Vendors page for 'New Vendor Orders' section."
+          }
+        },
+        {
+          "name": "List All Vendors",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "PENDING", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Filter by status: PENDING | APPROVED | REJECTED | SUSPENDED"
+          }
+        },
+        {
+          "name": "Get Vendor by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}"]
+            },
+            "description": "Returns vendor with country, city, area, googleMapsLink, locations (branches), wallet, _count."
+          }
+        },
+        {
+          "name": "Update Vendor",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"محمد أحمد\",\n  \"businessName\": \"مطعم البيت\",\n  \"businessNameAr\": \"مطعم البيت\",\n  \"description\": \"وصف المتجر\",\n  \"address\": \"العنوان الكامل\",\n  \"country\": \"الكويت\",\n  \"city\": \"الكويت\",\n  \"area\": \"النرجس\",\n  \"latitude\": 29.3759,\n  \"longitude\": 47.9774,\n  \"googleMapsLink\": \"https://maps.google.com/?q=29.3759,47.9774\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}"]
+            },
+            "description": "Update vendor profile and location fields. All fields optional."
+          }
+        },
+        {
+          "name": "Vendors Map (for map view)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors-map?vendorType=&city=&activeOnly=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors-map"],
+              "query": [
+                { "key": "vendorType", "value": "RESTAURANT", "disabled": true },
+                { "key": "city", "value": "الكويت", "disabled": true },
+                { "key": "activeOnly", "value": "true", "disabled": true }
+              ]
+            },
+            "description": "Returns list of map points (vendor main + branches with lat/lng). Filter: vendorType, city, activeOnly."
+          }
+        },
+        {
+          "name": "Get Vendor Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/orders/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "orders", "{{orderId}}"]
+            },
+            "description": "Single order with vendorLocation, items, vendor (for map: vendor/customer lat-lng, distance)."
+          }
+        },
+        {
+          "name": "Admin — List Vendor Locations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/locations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "locations"]
+            }
+          }
+        },
+        {
+          "name": "Admin — Add Vendor Location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('locationId', pm.response.json().location.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationName\": \"فرع الإدارة\",\n  \"address\": \"شارع الخليج\",\n  \"city\": \"الكويت\",\n  \"area\": \"شرق\",\n  \"latitude\": 29.38,\n  \"longitude\": 47.98,\n  \"isMainLocation\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/locations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "locations"]
+            }
+          }
+        },
+        {
+          "name": "Admin — Update Vendor Location",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationName\": \"فرع محدث\",\n  \"address\": \"العنوان الجديد\",\n  \"city\": \"الكويت\",\n  \"area\": \"شرق\",\n  \"latitude\": 29.381,\n  \"longitude\": 47.981,\n  \"isMainLocation\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/locations/{{locationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "locations", "{{locationId}}"]
+            }
+          }
+        },
+        {
+          "name": "Admin — Delete Vendor Location",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/locations/{{locationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "locations", "{{locationId}}"]
+            }
+          }
+        },
+        {
+          "name": "✅ Approve Vendor",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "approve"]
+            },
+            "description": "Approves vendor and auto-creates wallet if not existing"
+          }
+        },
+        {
+          "name": "❌ Reject Vendor",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"المستندات غير مكتملة\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "reject"]
+            }
+          }
+        },
+        {
+          "name": "⏸️ Suspend Vendor",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/suspend",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "suspend"]
+            }
+          }
+        },
+        {
+          "name": "💸 Send Money to Vendor",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 500,\n  \"description\": \"دفعة شهر مارس 2026\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/send-money",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "send-money"]
+            },
+            "description": "Sends money to vendor wallet and creates a CREDIT transaction"
+          }
+        },
+        {
+          "name": "Get Vendor Transactions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/transactions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "transactions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Vendor Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/vendors/{{vendorId}}/orders?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "vendors", "{{vendorId}}", "orders"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "PENDING", "disabled": true }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

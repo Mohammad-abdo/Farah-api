@@ -19,9 +19,14 @@ const authenticate = async (req, res, next) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
       
+      const uid = decoded.userId || decoded.vendorId || decoded.id;
+      if (!uid) {
+        return res.status(401).json({ error: 'Invalid token payload' });
+      }
+
       // Fetch user from database
       const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
+        where: { id: uid },
         select: {
           id: true,
           name: true,
@@ -138,22 +143,25 @@ const optionalAuth = async (req, res, next) => {
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          role: true,
-          isActive: true,
-          avatar: true,
-          location: true
-        }
-      });
+      const uid = decoded.userId || decoded.vendorId || decoded.id;
+      if (uid) {
+        const user = await prisma.user.findUnique({
+          where: { id: uid },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            role: true,
+            isActive: true,
+            avatar: true,
+            location: true
+          }
+        });
 
-      if (user && user.isActive) {
-        req.user = user;
+        if (user && user.isActive) {
+          req.user = user;
+        }
       }
     } catch (error) {
       // Ignore token errors for optional auth

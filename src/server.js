@@ -188,6 +188,7 @@ const onboardingRoutes = require('./routes/onboarding');
 const mobileRoutes = require('./routes/mobile');
 const providerRoutes = require('./routes/provider');
 const paymentsRoutes = require('./routes/payments');
+const vendorRoutes = require('./routes/vendor');
 
 // Use routes
 app.use('/api/venues', venuesRoutes);
@@ -205,6 +206,8 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/sliders', slidersRoutes);
 app.use('/api/onboarding', onboardingRoutes);
+// Mount vendor before /api/mobile so /api/mobile/vendor/* is handled by vendor routes (auth is public)
+app.use('/api/mobile/vendor', vendorRoutes);
 app.use('/api/mobile', mobileRoutes);
 app.use('/api/provider', providerRoutes);
 app.use('/api/payments', paymentsRoutes);
@@ -220,25 +223,26 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Listen on all network interfaces (0.0.0.0) to allow access from other devices
-app.listen(PORT, '0.0.0.0', () => {
-  const os = require('os');
-  const networkInterfaces = os.networkInterfaces();
-  let localIP = 'localhost';
-  
-  // Find local IP address (usually 192.168.x.x)
-  for (const name of Object.keys(networkInterfaces)) {
-    for (const iface of networkInterfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal && iface.address.startsWith('192.168.')) {
-        localIP = iface.address;
-        break;
+// Listen on all network interfaces (0.0.0.0) to allow access from other devices (skip when running tests)
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, '0.0.0.0', () => {
+    const os = require('os');
+    const networkInterfaces = os.networkInterfaces();
+    let localIP = 'localhost';
+    for (const name of Object.keys(networkInterfaces)) {
+      for (const iface of networkInterfaces[name]) {
+        if (iface.family === 'IPv4' && !iface.internal && iface.address.startsWith('192.168.')) {
+          localIP = iface.address;
+          break;
+        }
       }
+      if (localIP !== 'localhost') break;
     }
-    if (localIP !== 'localhost') break;
-  }
-  
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`🌐 Server is accessible on your network at http://${localIP}:${PORT}`);
-  console.log(`📱 Make sure your mobile device is on the same Wi-Fi network`);
-});
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+    console.log(`🌐 Server is accessible on your network at http://${localIP}:${PORT}`);
+    console.log(`📱 Make sure your mobile device is on the same Wi-Fi network`);
+  });
+}
+
+module.exports = app;
 
