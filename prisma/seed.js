@@ -740,10 +740,188 @@ async function main() {
     console.warn('⚠️ Could not create content pages:', error.message);
   }
 
+  // ── Mobile Test Vendors (phone + password login) ──────────────────────────
+  console.log('📱 Creating mobile test vendors...');
+  const mobileVendorPassword = await bcrypt.hash('123456', 10);
+  const mobileVendors = [
+    {
+      user: { name:'أحمد محمد', phone:'96550001111', password:mobileVendorPassword, role:'PROVIDER', isActive:true },
+      profile: { vendorType:'RESTAURANT', status:'APPROVED', businessName:'Farah Kitchen', businessNameAr:'مطبخ فرح', description:'أفضل المأكولات الكويتية والعربية، وجبات طازجة يومياً', address:'شارع الخليج، بلوك 5', country:'الكويت', city:'حولي', area:'السالمية', latitude:29.3375, longitude:48.0756, googleMapsLink:'https://www.google.com/maps?q=29.3375,48.0756', phoneVerified:true, isActive:true, rating:4.7 },
+      locations: [
+        { locationName:'الفرع الرئيسي - السالمية', address:'شارع سالم المبارك', city:'حولي', area:'السالمية', latitude:29.3375, longitude:48.0756, isMainLocation:true },
+        { locationName:'فرع حولي', address:'شارع تونس، حولي', city:'حولي', area:'حولي', latitude:29.3387, longitude:48.0284, isMainLocation:false },
+      ],
+      services: [
+        { nameAr:'مشاوي مشكلة', name:'Mixed Grill', description:'تشكيلة مشاوي فاخرة مع أرز بسمتي', price:8.5 },
+        { nameAr:'برياني دجاج', name:'Chicken Biryani', description:'برياني على الطريقة الهندية', price:4.75 },
+        { nameAr:'فتوش', name:'Fattoush', description:'سلطة فتوش طازجة', price:2.0 },
+        { nameAr:'كنافة نابلسية', name:'Kunafa', description:'كنافة ساخنة بالجبنة', price:3.25 },
+        { nameAr:'عصير ليمون بالنعناع', name:'Lemon Mint', description:'عصير ليمون طازج بالنعناع', price:1.5 },
+      ],
+      wallet: { balance:245.5, totalEarnings:344.0 },
+    },
+    {
+      user: { name:'فاطمة علي', phone:'96550002222', password:mobileVendorPassword, role:'PROVIDER', isActive:true },
+      profile: { vendorType:'SWEETS_SHOP', status:'APPROVED', businessName:'Sweet Farah', businessNameAr:'حلويات فرح', description:'تشكيلة واسعة من الحلويات الشرقية والغربية', address:'مجمع الأفنيوز', country:'الكويت', city:'الفروانية', area:'الري', latitude:29.2976, longitude:47.9562, googleMapsLink:'https://www.google.com/maps?q=29.2976,47.9562', phoneVerified:true, isActive:true, rating:4.9 },
+      locations: [
+        { locationName:'الفرع الرئيسي - الأفنيوز', address:'مجمع الأفنيوز، الطابق الأرضي', city:'الفروانية', area:'الري', latitude:29.2976, longitude:47.9562, isMainLocation:true },
+      ],
+      services: [
+        { nameAr:'كيكة زفاف فاخرة', name:'Wedding Cake', description:'كيكة زفاف 3 طبقات مزينة بالورود', price:75.0 },
+        { nameAr:'بقلاوة مشكلة', name:'Baklava Mix', description:'علبة بقلاوة مشكلة 500 جرام', price:6.5 },
+        { nameAr:'كب كيك (12 حبة)', name:'Cupcakes 12pcs', description:'12 كب كيك بنكهات متنوعة', price:8.0 },
+        { nameAr:'تمور محشية', name:'Stuffed Dates', description:'تمور فاخرة محشية بالمكسرات', price:12.0 },
+        { nameAr:'توزيعات أفراح', name:'Wedding Favors', description:'توزيعات شوكولاتة فاخرة', price:0.75 },
+        { nameAr:'كيكة عيد ميلاد', name:'Birthday Cake', description:'كيكة عيد ميلاد مخصصة', price:15.0 },
+      ],
+      wallet: { balance:1320.75, totalEarnings:1850.0 },
+    },
+    {
+      user: { name:'خالد العنزي', phone:'96550003333', password:mobileVendorPassword, role:'PROVIDER', isActive:true },
+      profile: { vendorType:'FASHION_STORE', status:'APPROVED', businessName:'Khaled Fashion', businessNameAr:'أزياء خالد', description:'أحدث صيحات الموضة بأسعار منافسة', address:'سوق المباركية', country:'الكويت', city:'العاصمة', area:'المباركية', latitude:29.3759, longitude:47.9774, googleMapsLink:'https://www.google.com/maps?q=29.3759,47.9774', phoneVerified:true, isActive:true, rating:4.5 },
+      locations: [
+        { locationName:'الفرع الرئيسي - المباركية', address:'سوق المباركية', city:'العاصمة', area:'المباركية', latitude:29.3759, longitude:47.9774, isMainLocation:true },
+        { locationName:'فرع الشويخ', address:'المنطقة الحرة، الشويخ', city:'العاصمة', area:'الشويخ', latitude:29.3456, longitude:47.9312, isMainLocation:false },
+      ],
+      services: [
+        { nameAr:'ثوب رجالي فاخر', name:'Premium Thobe', description:'ثوب رجالي قماش إيطالي', price:45.0 },
+        { nameAr:'عباية نسائية', name:'Womens Abaya', description:'عباية نسائية مطرزة يدوياً', price:35.0 },
+        { nameAr:'شماغ أحمر', name:'Red Shemagh', description:'شماغ أحمر قطن 100%', price:8.0 },
+        { nameAr:'بشت رجالي', name:'Bisht', description:'بشت رجالي للمناسبات', price:120.0 },
+        { nameAr:'جلابية مغربية', name:'Moroccan Jellaba', description:'جلابية مغربية تقليدية', price:25.0, isActive:false },
+      ],
+      wallet: { balance:890.0, totalEarnings:1250.0 },
+    },
+  ];
+
+  for (const mv of mobileVendors) {
+    const user = await prisma.user.create({ data: mv.user });
+    await prisma.vendorProfile.create({ data: { userId: user.id, ...mv.profile } });
+
+    const vendorLocs = [];
+    for (const loc of mv.locations) {
+      const l = await prisma.vendorLocation.create({ data: { userId: user.id, ...loc } });
+      vendorLocs.push(l);
+    }
+
+    const vendorSvcs = [];
+    for (const svc of mv.services) {
+      const { isActive: ia, ...rest } = svc;
+      const s = await prisma.vendorService.create({
+        data: { userId: user.id, ...rest, images: [], isAvailable: ia !== false },
+      });
+      vendorSvcs.push(s);
+    }
+
+    if (categories.length > 0) {
+      for (const svc of mv.services) {
+        const { isActive: ia, ...rest } = svc;
+        await prisma.service.create({
+          data: { ...rest, images: [], isActive: ia !== false, providerId: user.id, categoryId: categories[Math.floor(Math.random() * categories.length)].id },
+        });
+      }
+    }
+
+    const wallet = await prisma.vendorWallet.create({ data: { userId: user.id, balance: 0 } });
+
+    const orderStatuses = ['DELIVERED', 'DELIVERED', 'DELIVERED', 'ACCEPTED', 'IN_DELIVERY', 'PENDING'];
+    const customerNames = ['نورة الفهد', 'مريم العلي', 'عبدالله الشمري', 'هند المطيري', 'يوسف الحربي', 'سارة الدوسري'];
+    let totalEarnings = 0;
+    let totalCommission = 0;
+
+    for (let o = 0; o < 6; o++) {
+      const loc = vendorLocs[o % vendorLocs.length];
+      const status = orderStatuses[o];
+      const paymentStatus = (status === 'DELIVERED' || status === 'ACCEPTED' || status === 'IN_DELIVERY') ? 'PAID' : 'PENDING';
+      const svc1 = vendorSvcs[o % vendorSvcs.length];
+      const svc2 = vendorSvcs[(o + 1) % vendorSvcs.length];
+      const qty1 = 1 + (o % 3);
+      const qty2 = o % 2 === 0 ? 1 : 0;
+      const totalAmount = svc1.price * qty1 + (qty2 ? svc2.price * qty2 : 0);
+      const commissionRate = 0.05;
+      const commission = Math.round(totalAmount * commissionRate * 100) / 100;
+      const netAmount = Math.round((totalAmount - commission) * 100) / 100;
+
+      const order = await prisma.vendorOrder.create({
+        data: {
+          orderNumber: `MV-${user.phone.slice(-4)}-${String(o + 1).padStart(3, '0')}`,
+          userId: user.id,
+          vendorLocationId: loc.id,
+          customerName: customerNames[o],
+          customerPhone: `+9656${String(5000000 + o * 111).slice(-7)}`,
+          status,
+          totalAmount,
+          paymentStatus,
+          notes: o === 0 ? 'بدون بصل من فضلك' : null,
+          address: `منطقة ${loc.area || loc.city}، بلوك ${o + 1}`,
+          vendorLatitude: loc.latitude,
+          vendorLongitude: loc.longitude,
+          items: {
+            create: [
+              { serviceId: svc1.id, quantity: qty1, price: svc1.price },
+              ...(qty2 ? [{ serviceId: svc2.id, quantity: qty2, price: svc2.price }] : []),
+            ],
+          },
+        },
+      });
+
+      if (paymentStatus === 'PAID') {
+        totalEarnings += netAmount;
+        totalCommission += commission;
+        await prisma.vendorTransaction.create({
+          data: {
+            userId: user.id, type: 'CREDIT', category: 'ORDER_INCOME',
+            amount: totalAmount, commission, netAmount, status: 'COMPLETED',
+            description: `طلب ${order.orderNumber} - ${customerNames[o]}`,
+            reference: order.id, referenceOrderId: order.id,
+          },
+        });
+        await prisma.vendorTransaction.create({
+          data: {
+            userId: user.id, type: 'DEBIT', category: 'COMMISSION_DEDUCTION',
+            amount: commission, status: 'COMPLETED',
+            description: `عمولة الطلب ${order.orderNumber}`,
+            referenceOrderId: order.id,
+          },
+        });
+      }
+    }
+
+    await prisma.vendorTransaction.create({
+      data: {
+        userId: user.id, type: 'CREDIT', category: 'MANUAL_DEPOSIT',
+        amount: 50, netAmount: 50, status: 'COMPLETED',
+        description: 'إيداع أولي - رصيد ترحيبي', paymentMethod: 'BANK',
+      },
+    });
+
+    await prisma.vendorWallet.update({
+      where: { id: wallet.id },
+      data: {
+        balance: Math.round((totalEarnings + 50) * 100) / 100,
+        totalEarnings: Math.round((totalEarnings + 50) * 100) / 100,
+        totalCommissionPaid: Math.round(totalCommission * 100) / 100,
+      },
+    });
+
+    await prisma.notification.createMany({ data: [
+      { userId: user.id, title: 'مرحباً بك في فرح!', message: 'تم تفعيل حسابك بنجاح. ابدأ بإضافة خدماتك الآن.', type: 'SUCCESS', category: 'SYSTEM' },
+      { userId: user.id, title: 'طلب جديد #MV-' + user.phone.slice(-4) + '-006', message: 'لديك طلب جديد من سارة الدوسري بانتظار الموافقة.', type: 'INFO', category: 'BOOKING' },
+      { userId: user.id, title: 'تم تسليم الطلب', message: 'تم تسليم الطلب #MV-' + user.phone.slice(-4) + '-001 بنجاح لنورة الفهد.', type: 'SUCCESS', category: 'BOOKING' },
+      { userId: user.id, title: 'تقييم جديد ⭐⭐⭐⭐⭐', message: 'حصلت على تقييم 5 نجوم من مريم العلي! "خدمة ممتازة وسريعة"', type: 'INFO', category: 'REVIEW' },
+      { userId: user.id, title: 'تم إيداع مبلغ في محفظتك', message: `تم إيداع ${Math.round(totalEarnings)} د.ك في محفظتك من الطلبات المكتملة.`, type: 'SUCCESS', category: 'PAYMENT' },
+      { userId: user.id, title: 'تحديث النظام', message: 'تم تحديث التطبيق إلى الإصدار الجديد. تمتع بالمزايا الجديدة!', type: 'INFO', category: 'SYSTEM' },
+      { userId: user.id, title: 'تذكير: طلب قيد التوصيل', message: 'الطلب #MV-' + user.phone.slice(-4) + '-005 في طريقه للعميل يوسف الحربي.', type: 'WARNING', category: 'BOOKING' },
+    ]});
+
+    console.log(`   ✅ ${mv.profile.businessNameAr} (${mv.user.phone} / 123456) → ${vendorSvcs.length} services, 6 orders, ${Math.round(totalEarnings + 50)} د.ك wallet`);
+  }
+
   console.log('\n🎉 Seed completed successfully!');
   console.log('\n📋 Summary:');
   console.log(`   - Admin: 1 (admin@farah.com / admin123)`);
   console.log(`   - Providers: ${providers.length}`);
+  console.log(`   - Mobile Test Vendors: ${mobileVendors.length}`);
   console.log(`   - Customers: ${customers.length}`);
   console.log(`   - Categories: ${categories.length}`);
   console.log(`   - Venues: ${venues.length}`);
@@ -758,6 +936,10 @@ async function main() {
   console.log('   Customer: customer1@farah.com (no password - use OTP)');
   console.log('   Provider (vendor): provider1@farah.com … provider5@farah.com / provider123');
   console.log('   Each provider has: VendorProfile, Wallet, 2 Locations, VendorServices, 4 Orders, Transactions');
+  console.log('\n📱 Mobile Vendor Test Accounts (phone + password):');
+  console.log('   96550001111 / 123456 → مطبخ فرح (RESTAURANT)');
+  console.log('   96550002222 / 123456 → حلويات فرح (SWEETS_SHOP)');
+  console.log('   96550003333 / 123456 → أزياء خالد (FASHION_STORE)');
 }
 
 main()
