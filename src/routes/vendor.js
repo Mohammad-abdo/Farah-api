@@ -709,18 +709,216 @@ router.get('/wallet', VendorController.getWallet);
  */
 router.get('/wallet/transactions', VendorController.getTransactions);
 
-// Financial Report
+/**
+ * @swagger
+ * /api/mobile/vendor/financial-report:
+ *   get:
+ *     summary: Get vendor financial report
+ *     description: |
+ *       Returns aggregated financial statistics for the vendor wallet, income, commission,
+ *       withdrawals, orders by status, and recent transactions.
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, week, month, year, all]
+ *         description: Filter report by period. Defaults to all if not provided.
+ *     responses:
+ *       200:
+ *         description: Financial report for the vendor
+ */
 router.get('/financial-report', VendorController.getFinancialReport);
 
-// Bank Accounts
+/**
+ * @swagger
+ * /api/mobile/vendor/bank-accounts:
+ *   get:
+ *     summary: Get vendor bank accounts
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of active bank accounts
+ */
 router.get('/bank-accounts', VendorController.getBankAccounts);
+
+/**
+ * @swagger
+ * /api/mobile/vendor/bank-accounts:
+ *   post:
+ *     summary: Add a new bank account
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [bankName, accountName, accountNumber]
+ *             properties:
+ *               bankName:
+ *                 type: string
+ *               bankNameAr:
+ *                 type: string
+ *               accountName:
+ *                 type: string
+ *               accountNumber:
+ *                 type: string
+ *               iban:
+ *                 type: string
+ *               swiftCode:
+ *                 type: string
+ *               isDefault:
+ *                 type: boolean
+ *     responses:
+ *       201:
+ *         description: Bank account created
+ */
 router.post('/bank-accounts', VendorController.addBankAccount);
+
+/**
+ * @swagger
+ * /api/mobile/vendor/bank-accounts/{id}:
+ *   patch:
+ *     summary: Update an existing bank account
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               bankName:
+ *                 type: string
+ *               bankNameAr:
+ *                 type: string
+ *               accountName:
+ *                 type: string
+ *               accountNumber:
+ *                 type: string
+ *               iban:
+ *                 type: string
+ *               swiftCode:
+ *                 type: string
+ *               isDefault:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Bank account updated
+ */
 router.patch('/bank-accounts/:id', VendorController.updateBankAccount);
+
+/**
+ * @swagger
+ * /api/mobile/vendor/bank-accounts/{id}:
+ *   delete:
+ *     summary: Delete (deactivate) a bank account
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Bank account deleted
+ */
 router.delete('/bank-accounts/:id', VendorController.deleteBankAccount);
 
-// Withdrawal Requests
+/**
+ * @swagger
+ * /api/mobile/vendor/withdrawals:
+ *   get:
+ *     summary: Get vendor withdrawal requests
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *         description: Filter by status (e.g., PENDING, APPROVED, REJECTED, COMPLETED)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of withdrawal requests
+ */
 router.get('/withdrawals', VendorController.getWithdrawals);
+
+/**
+ * @swagger
+ * /api/mobile/vendor/withdrawals:
+ *   post:
+ *     summary: Create a new withdrawal request
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [amount]
+ *             properties:
+ *               amount:
+ *                 type: number
+ *               bankAccountId:
+ *                 type: string
+ *                 nullable: true
+ *               vendorNote:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Withdrawal request created
+ */
 router.post('/withdrawals', VendorController.requestWithdrawal);
+
+/**
+ * @swagger
+ * /api/mobile/vendor/withdrawals/{id}/cancel:
+ *   patch:
+ *     summary: Cancel a pending withdrawal request
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Withdrawal request cancelled
+ */
 router.patch('/withdrawals/:id/cancel', VendorController.cancelWithdrawal);
 
 module.exports = router;
