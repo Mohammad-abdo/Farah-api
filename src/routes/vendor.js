@@ -921,4 +921,86 @@ router.post('/withdrawals', VendorController.requestWithdrawal);
  */
 router.patch('/withdrawals/:id/cancel', VendorController.cancelWithdrawal);
 
+/**
+ * @swagger
+ * /api/mobile/vendor/notifications:
+ *   get:
+ *     summary: Get vendor notifications
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: isRead
+ *         schema:
+ *           type: boolean
+ *         description: Filter by read/unread status
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of notifications for the vendor
+ */
+router.get('/notifications', VendorController.getNotifications);
+
+/**
+ * @swagger
+ * /api/mobile/vendor/notifications/unread-count:
+ *   get:
+ *     summary: Get unread notifications count for vendor
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Unread notifications count
+ */
+router.get('/notifications/unread-count', VendorController.getNotificationsUnreadCount);
+
+/**
+ * @swagger
+ * /api/mobile/vendor/notifications/{id}/read:
+ *   patch:
+ *     summary: Mark a vendor notification as read
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Notification marked as read
+ *       404:
+ *         description: Notification not found
+ */
+router.patch('/notifications/:id/read', VendorController.markNotificationAsRead);
+
+/**
+ * @swagger
+ * /api/mobile/vendor/notifications/read-all:
+ *   patch:
+ *     summary: Mark all vendor notifications as read
+ *     tags: [Vendor]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notifications marked as read
+ */
+router.patch('/notifications/read-all', VendorController.markAllNotificationsAsRead);
+
 module.exports = router;

@@ -1001,6 +1001,109 @@ class VendorController {
       return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
     }
   }
+
+  // ── Notifications (Vendor scoped) ─────────────────────────────────────
+
+  /**
+   * GET /api/mobile/vendor/notifications
+   */
+  static async getNotifications(req, res) {
+    try {
+      const userId = req.vendor.id;
+      const { isRead, category, limit = 50, offset = 0 } = req.query;
+
+      const where = {
+        userId,
+        ...(isRead !== undefined && { isRead: isRead === 'true' }),
+        ...(category && { category }),
+      };
+
+      const [notifications, total, unreadCount] = await Promise.all([
+        prisma.notification.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: parseInt(limit),
+          skip: parseInt(offset),
+        }),
+        prisma.notification.count({ where }),
+        prisma.notification.count({
+          where: { userId, isRead: false },
+        }),
+      ]);
+
+      return res.json({
+        success: true,
+        notifications,
+        total,
+        unreadCount,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+      });
+    } catch (error) {
+      console.error('getNotifications error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  /**
+   * GET /api/mobile/vendor/notifications/unread-count
+   */
+  static async getNotificationsUnreadCount(req, res) {
+    try {
+      const userId = req.vendor.id;
+      const count = await prisma.notification.count({
+        where: { userId, isRead: false },
+      });
+      return res.json({ success: true, count });
+    } catch (error) {
+      console.error('getNotificationsUnreadCount error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  /**
+   * PATCH /api/mobile/vendor/notifications/:id/read
+   */
+  static async markNotificationAsRead(req, res) {
+    try {
+      const userId = req.vendor.id;
+      const { id } = req.params;
+
+      const notification = await prisma.notification.findFirst({
+        where: { id, userId },
+      });
+      if (!notification) {
+        return res.status(404).json({ success: false, error: 'الإشعار غير موجود' });
+      }
+
+      const updated = await prisma.notification.update({
+        where: { id },
+        data: { isRead: true, readAt: new Date() },
+      });
+
+      return res.json({ success: true, notification: updated });
+    } catch (error) {
+      console.error('markNotificationAsRead error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
+
+  /**
+   * PATCH /api/mobile/vendor/notifications/read-all
+   */
+  static async markAllNotificationsAsRead(req, res) {
+    try {
+      const userId = req.vendor.id;
+      await prisma.notification.updateMany({
+        where: { userId, isRead: false },
+        data: { isRead: true, readAt: new Date() },
+      });
+      return res.json({ success: true, message: 'تم تعليم جميع الإشعارات كمقروءة' });
+    } catch (error) {
+      console.error('markAllNotificationsAsRead error:', error);
+      return res.status(500).json({ success: false, error: 'خطأ في السيرفر' });
+    }
+  }
 }
 
 module.exports = VendorController;
